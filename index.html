@@ -141,6 +141,11 @@ function waLink(phone, text) {
   if (d.startsWith('00')) d = d.slice(2); else if (d.startsWith('0')) d = '20' + d.slice(1);
   return 'https://wa.me/' + d + '?text=' + encodeURIComponent(text);
 }
+const trackUrl = (v) => new URL('t.html', location.href).href.split('#')[0] + '#' + v.tracking_token;
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); return true; }
+  catch (e) { const ta = document.createElement('textarea'); ta.value = t; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (_) {} ta.remove(); return ok; }
+}
 let toastTimer;
 function toast(msg, bad) { const t = $('toast'); t.textContent = msg; t.className = 'toast' + (bad ? ' bad' : ''); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add('hidden'), 4500); }
 const errMsg = (e) => (e && e.message) ? e.message : 'حدث خطأ غير متوقع';
@@ -220,6 +225,7 @@ function visitCard(v) {
   if (v.status === 'skipped')     btns += st('waiting', 'إعادة للانتظار', 'sec') + post + st('cancelled', 'إلغاء', 'danger');
   if (v.status === 'cancelled' && !v.postponed_to) btns += st('waiting', 'إعادة للانتظار', 'sec');
   btns += `<button class="b sec" data-act="pay" data-id="${v.id}">الحساب</button>`;
+  if (!v.link_closed_at) btns += `<button class="b sec" data-act="copylink" data-id="${v.id}">🔗 نسخ الرابط</button>`;
   btns += `<button class="b sec" data-act="wa" data-id="${v.id}">واتساب</button>`;
   const stChip = isPost(v) ? `<span class="chip postponed">مؤجل إلى ${fmtDate(v.postponed_to_date)}</span>` : `<span class="chip ${v.status}">${STATUS[v.status]}</span>`;
   return `<div class="card visit"><div class="qn">${v.queue_no}</div><div class="vbody">
@@ -504,7 +510,12 @@ document.addEventListener('click', async (e) => {
     else if (act === 'profile') { await openProfile(el.dataset.pid); }
     else if (act === 'wa') {
       const v = state.visits.find(x => x.id === id); if (!v) return;
-      window.open(waLink(v.patients.phone, `أهلًا ${v.patients.full_name}، رقم دورك ${v.queue_no} يوم ${fmtDate(v.visit_date)}.`), '_blank', 'noopener');
+      const link = v.link_closed_at ? '' : ` لمتابعة دورك: ${trackUrl(v)}`;
+      window.open(waLink(v.patients.phone, `أهلًا ${v.patients.full_name}، تم تأكيد حجزك يوم ${fmtDate(v.visit_date)}. رقم دورك: ${v.queue_no}.${link}`), '_blank', 'noopener');
+    }
+    else if (act === 'copylink') {
+      const v = state.visits.find(x => x.id === id); if (!v) return;
+      toast((await copyText(trackUrl(v))) ? 'تم نسخ رابط المتابعة ✅' : 'تعذر النسخ تلقائيًا', false);
     }
     else if (act === 'bsearch' || act === 'psearch') {
       const box = $(act === 'bsearch' ? 'bq' : 'pq'), out = $(act === 'bsearch' ? 'bres' : 'pres');

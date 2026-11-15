@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#8e6bb0">
+<title>متابعة دورك</title>
+<style>
+:root{--bg:#fdf8fb;--pink:#f8d7e6;--mauve:#8e6bb0;--dark:#6b4a8c;--text:#3a2c45;--muted:#7d6e88;--ok:#2e9e6b;--bad:#d64545;--border:#eadcf0}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(180deg,#f8d7e6 0,#fdf8fb 240px);color:var(--text);font:17px/1.7 "Segoe UI",Tahoma,"Noto Naskh Arabic","Noto Sans Arabic",system-ui,sans-serif;min-height:100vh}
+.wrap{max-width:480px;margin:0 auto;padding:20px 16px 40px}
+h1{margin:0;text-align:center;color:var(--dark);font-size:22px}
+.sub{text-align:center;color:var(--muted);margin:2px 0 16px}
+.card{background:#fff;border:1px solid var(--border);border-radius:18px;padding:18px;box-shadow:0 4px 16px rgba(142,107,176,.12);margin-bottom:12px}
+.doc{border-radius:14px;padding:12px;text-align:center;font-weight:800;font-size:18px;color:#fff;margin-bottom:12px}
+.doc.on{background:var(--ok)} .doc.off{background:var(--bad)}
+.nums{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.num{background:#faf3fc;border-radius:14px;text-align:center;padding:12px 6px}
+.num b{display:block;font-size:44px;line-height:1.1;color:var(--dark)} .num span{font-size:14px;color:var(--muted)}
+.num.big{grid-column:1/-1;background:var(--mauve)} .num.big b,.num.big span{color:#fff} .num.big b{font-size:56px}
+.row{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)} .row:last-child{border:0}
+.row span:first-child{color:var(--muted)}
+.msg{text-align:center;font-weight:700;color:var(--dark);font-size:18px;padding:6px 0}
+.small{text-align:center;color:var(--muted);font-size:13px;margin-top:10px}
+.center{text-align:center;padding:30px 10px} .center h2{color:var(--dark);margin:6px 0}
+.emoji{font-size:54px}
+</style>
+</head>
+<body>
+<div class="wrap"><h1>🌸 عيادة الدكتورة</h1><p class="sub">متابعة دورك</p><div id="out"><div class="card center"><p>جارٍ التحميل...</p></div></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script>
+(function () {
+'use strict';
+const out = document.getElementById('out');
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const TYPE = { exam: 'كشف', consult: 'استشارة' };
+const STATUS = { waiting: 'في الانتظار', arrived: 'تم تسجيل حضورك', in_progress: 'جاري الكشف', skipped: 'تم تخطي دورك مؤقتًا' };
+const fmtDate = (d) => { if (!d) return ''; const [y, m, dd] = String(d).split('-'); return dd + '/' + m + '/' + y; };
+const DAYS = ['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+const dayName = (d) => DAYS[new Date(d + 'T12:00:00Z').getUTCDay()];
+const token = (location.hash || '').slice(1);
+const cfg = window.APP_CONFIG || {};
+
+function box(emoji, title, text) { out.innerHTML = `<div class="card center"><div class="emoji">${emoji}</div><h2>${esc(title)}</h2><p>${esc(text)}</p></div>`; }
+
+function message(d) {
+  if (!d.is_today) return 'موعدك يوم ' + dayName(d.visit_date) + ' ' + fmtDate(d.visit_date) + '. يبدأ تتبع الدور في يوم الزيارة.';
+  if (d.status === 'in_progress') return 'الدكتورة تكشف عليكِ الآن 💜';
+  if (d.status === 'skipped') return 'تم تخطي دورك مؤقتًا، من فضلك توجّهي لموظفة الاستقبال.';
+  if (d.remaining === 0) return 'دورك هو التالي، من فضلك استعدي.';
+  if (d.remaining !== null && d.remaining <= 2) return 'اقترب دورك، من فضلك كوني قريبة من العيادة.';
+  return 'من فضلك انتظري، وسيتم تحديث الصفحة تلقائيًا.';
+}
+
+function render(d) {
+  const now = new Date().toLocaleTimeString('ar-EG', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' });
+  out.innerHTML = `
+    <div class="doc ${d.doctor_arrived ? 'on' : 'off'}">${d.doctor_arrived ? '🟢 الدكتورة وصلت إلى العيادة' : '🔴 الدكتورة لم تصل بعد'}</div>
+    <div class="card"><p style="margin:0 0 10px;text-align:center">أهلًا بكِ <b>${esc(d.patient_name)}</b> في عيادة الدكتورة</p>
+      <div class="nums">
+        <div class="num big"><b>${d.queue_no}</b><span>رقم دورك</span></div>
+        <div class="num"><b>${d.current_queue ?? '-'}</b><span>الدور الحالي</span></div>
+        <div class="num"><b>${d.remaining ?? '-'}</b><span>الأدوار المتبقية أمامك</span></div>
+      </div>
+      <div class="msg">${esc(message(d))}</div></div>
+    <div class="card">
+      <div class="row"><span>تاريخ الزيارة</span><b>${esc(dayName(d.visit_date))} ${fmtDate(d.visit_date)}</b></div>
+      <div class="row"><span>نوع الزيارة</span><b>${esc(TYPE[d.visit_type] || '')}</b></div>
+      <div class="row"><span>حالة الحجز</span><b>${esc(STATUS[d.status] || '')}</b></div></div>
+    <div class="small">آخر تحديث ${now} · يتحدث تلقائيًا</div>`;
+}
+
+let timer, last = null;
+async function load(sb) {
+  try {
+    const { data, error } = await sb.rpc('get_tracking', { p_token: token });
+    if (error) throw error;
+    if (!data || !data.found) { clearInterval(timer); box('❓', 'الرابط غير صحيح', 'تأكدي من الرابط أو تواصلي مع العيادة.'); return; }
+    if (data.closed) {
+      clearInterval(timer);
+      if (data.postponed) box('📅', 'تم تأجيل حجزك', 'تم تأجيل حجزك إلى ' + fmtDate(data.postponed_to_date) + '. ستصلك رسالة برابط الموعد الجديد.');
+      else if (data.cancelled) box('ℹ️', 'تم إلغاء هذا الحجز', 'للاستفسار تواصلي مع العيادة.');
+      else box('💜', 'انتهت زيارتك', 'شكرًا لزيارتك، نتمنى لكِ دوام الصحة.');
+      return;
+    }
+    last = data; render(data);
+  } catch (e) {
+    if (last) { render(last); out.insertAdjacentHTML('beforeend', '<div class="small">تعذر التحديث الآن، سنعيد المحاولة...</div>'); }
+    else box('⚠️', 'تعذر التحميل', 'تأكدي من اتصال الإنترنت وأعيدي المحاولة.');
+  }
+}
+
+if (!/^[0-9a-f]{48}$/.test(token)) { box('❓', 'الرابط غير صحيح', 'تأكدي من الرابط أو تواصلي مع العيادة.'); return; }
+if (!cfg.SUPABASE_URL || !window.supabase) { box('⚠️', 'الصفحة غير جاهزة', 'تواصلي مع العيادة.'); return; }
+const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+load(sb);
+timer = setInterval(() => { if (!document.hidden) load(sb); }, 8000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) load(sb); });
+})();
+</script>
+</body>
+</html>
