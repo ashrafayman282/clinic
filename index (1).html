@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#8e6bb0">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<title>نظام إدارة العيادة</title>
+<style>
+:root{--bg:#fdf8fb;--card:#fff;--pink:#f8d7e6;--pink2:#e9a3c4;--mauve:#8e6bb0;--dark:#6b4a8c;--text:#3a2c45;--muted:#7d6e88;--bad:#d64545;--ok:#2e9e6b;--warn:#c98a12;--border:#eadcf0;--r:14px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:16px/1.6 "Segoe UI",Tahoma,"Noto Naskh Arabic","Noto Sans Arabic",system-ui,sans-serif;min-height:100vh}
+.hidden{display:none!important}
+.wrap{max-width:760px;margin:0 auto;padding:14px 14px 110px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px;box-shadow:0 2px 10px rgba(142,107,176,.08);margin-bottom:12px}
+h1,h2,h3{margin:0 0 8px;color:var(--dark)} h3{font-size:17px}
+.muted{color:var(--muted);font-size:14px}
+.btn{display:flex;align-items:center;justify-content:center;width:100%;min-height:50px;padding:8px 16px;border:0;border-radius:12px;background:var(--mauve);color:#fff;font:inherit;font-weight:700;cursor:pointer}
+.btn:active{background:var(--dark)} .btn:disabled,.b:disabled{opacity:.5}
+.btn.sec{background:var(--pink);color:var(--dark)}
+.b{min-height:44px;padding:6px 14px;border:0;border-radius:10px;background:var(--mauve);color:#fff;font:inherit;font-weight:700;cursor:pointer}
+.b.sec{background:var(--pink);color:var(--dark)} .b.danger{background:#fdecec;color:var(--bad)} .b.ok{background:var(--ok)} .b.warn{background:#fff3d6;color:var(--warn)}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.field label{font-weight:700;font-size:15px}
+input,select,textarea{min-height:48px;padding:8px 12px;border:1.5px solid var(--border);border-radius:12px;font:inherit;font-size:16px;background:#fff;width:100%;color:var(--text)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--pink2)}
+.ltr{direction:ltr;text-align:left}
+.error{background:#fdecec;color:var(--bad);border-radius:10px;padding:10px 14px;margin-bottom:12px}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:10px;background:linear-gradient(90deg,var(--pink),#e9ddf5);padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top))}
+.badge{display:inline-block;padding:0 10px;border-radius:999px;background:#fff;color:var(--dark);font-weight:700;font-size:13px}
+.pagehead{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--border);border-right:6px solid var(--c,var(--mauve));border-radius:var(--r);padding:12px 14px;margin-bottom:12px;font-size:20px;font-weight:800;color:var(--c,var(--dark))}
+.pagehead small{font-size:13px;font-weight:600;color:var(--muted);margin-right:auto}
+.chip{display:inline-block;padding:0 10px;border-radius:999px;font-size:13px;font-weight:700;background:#eee;color:#555}
+.chip.waiting{background:#fff3d6;color:var(--warn)} .chip.arrived{background:#d8f0e4;color:var(--ok)}
+.chip.in_progress{background:#e4dbf5;color:var(--dark)} .chip.finished{background:#e8e8e8;color:#666}
+.chip.skipped{background:#ffe6cf;color:#b8631a} .chip.cancelled{background:#fdecec;color:var(--bad)}
+.chip.postponed{background:#e1effc;color:#2b6cb0}
+.chip.unpaid{background:#fdecec;color:var(--bad)} .chip.partial{background:#fff3d6;color:var(--warn)} .chip.paid{background:#d8f0e4;color:var(--ok)}
+.chip.preg{background:#fde4f0;color:#b03a7a}
+.doc{display:flex;align-items:center;justify-content:space-between;gap:10px;border-radius:var(--r);padding:14px;color:#fff;margin-bottom:12px}
+.doc.on{background:var(--ok)} .doc.off{background:var(--bad)} .doc strong{font-size:20px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.stat{background:#fff;border:1px solid var(--border);border-radius:12px;padding:8px;text-align:center}
+.stat b{display:block;font-size:19px;color:var(--dark)} .stat span{font-size:12px;color:var(--muted)}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.visit{display:flex;gap:12px}
+.qn{min-width:54px;height:54px;border-radius:50%;background:var(--pink);color:var(--dark);font-size:24px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.vbody{flex:1;min-width:0} .vname{font-weight:800;font-size:17px}
+.money{font-size:14px;color:var(--muted);margin:2px 0 8px}
+.nav{position:fixed;bottom:0;left:0;right:0;display:flex;gap:4px;background:#fff;border-top:1px solid var(--border);padding:6px 6px calc(6px + env(safe-area-inset-bottom));z-index:5;box-shadow:0 -4px 14px rgba(142,107,176,.12)}
+.nav button{flex:1;border:0;background:#f6f1f9;border-radius:12px;padding:6px 2px;font:inherit;font-size:13px;font-weight:800;color:#6a5a76;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:0;line-height:1.3}
+.nav button i{font-style:normal;font-size:22px}
+.nav button.on{background:var(--c);color:#fff}
+.modal{position:fixed;inset:0;background:rgba(40,25,50,.5);z-index:10;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:#fff;width:100%;max-width:760px;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+.toast{position:fixed;top:12px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:10px 18px;border-radius:12px;z-index:20;max-width:92%;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.toast.bad{background:var(--bad)}
+.cur{display:flex;gap:8px;margin-bottom:12px}
+.cur div{flex:1;background:#fff;border:1px solid var(--border);border-radius:12px;text-align:center;padding:6px}
+.cur b{font-size:26px;color:var(--dark);display:block;line-height:1.2}
+.pick{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border)}
+.seg{display:flex;gap:6px;margin:6px 0 10px}
+.seg button{flex:1;border:2px solid var(--border);background:#fff;border-radius:12px;padding:8px 4px;font:inherit;font-weight:800;font-size:14px;color:var(--muted);cursor:pointer;line-height:1.3}
+.seg button b{display:block;font-size:20px}
+.seg button.on{border-color:var(--c);background:var(--c);color:#fff}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:6px}
+.chips button{flex:none;border:1.5px solid var(--border);background:#fff;border-radius:999px;padding:6px 14px;font:inherit;font-size:14px;font-weight:700;color:var(--dark);cursor:pointer}
+.chips button.on{background:var(--dark);border-color:var(--dark);color:#fff}
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px} td,th{padding:6px 5px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+th{background:#faf3fc;color:var(--dark)}
+@media print{.nav,.topbar,.noprint,.modal,.toast{display:none!important} body{background:#fff} .wrap{padding:0;max-width:none} .card{box-shadow:none}}
+</style>
+</head>
+<body>
+
+<main id="login" class="wrap hidden" style="padding-top:60px">
+  <div class="card">
+    <h1>تسجيل الدخول</h1>
+    <p class="muted" style="margin-top:0">نظام إدارة العيادة</p>
+    <div id="loginError" class="error hidden" role="alert"></div>
+    <form id="loginForm">
+      <div class="field"><label for="email">البريد الإلكتروني</label>
+        <input id="email" class="ltr" type="email" required autocomplete="username" inputmode="email"></div>
+      <div class="field"><label for="password">كلمة المرور</label>
+        <input id="password" class="ltr" type="password" required autocomplete="current-password"></div>
+      <button class="btn" id="loginBtn">دخول</button>
+    </form>
+  </div>
+</main>
+
+<div id="app" class="hidden">
+  <header class="topbar">
+    <div><strong id="uname"></strong> <span class="badge" id="urole"></span></div>
+    <button class="b sec" id="logout">خروج</button>
+  </header>
+  <main class="wrap" id="main"></main>
+  <nav class="nav" id="nav"></nav>
+</div>
+
+<main id="setup" class="wrap hidden" style="padding-top:60px">
+  <div class="card"><h2>الإعداد غير مكتمل</h2><p>ملف <code>config.js</code> لا يحتوي على بيانات مشروع Supabase.</p></div>
+</main>
+
+<div id="modal" class="modal hidden"><div class="sheet" id="sheet"></div></div>
+<div id="toast" class="toast hidden"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="config.js"></script>
+<script>
+(function () {
+'use strict';
+const $ = (id) => document.getElementById(id);
+const cfg = window.APP_CONFIG || {};
+const showScreen = (id) => ['login','app','setup'].forEach(x => $(x).classList.toggle('hidden', x !== id));
+if (!cfg.SUPABASE_URL || cfg.SUPABASE_URL.startsWith('PUT_') || !window.supabase) { showScreen('setup'); return; }
+const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
+
+// ---------- أدوات ----------
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const TYPE = { exam: 'كشف', consult: 'استشارة' };
+const STATUS = { waiting:'منتظرة', arrived:'حضرت العيادة', in_progress:'جاري الكشف', finished:'تم الكشف', skipped:'تم تخطي الدور', cancelled:'ملغي' };
+const PAYM = { cash:'كاش', visa:'فيزا', instapay:'إنستا باي' };
+const PAYS = { unpaid:'لم يُدفع', partial:'مدفوع جزئيًا', paid:'مدفوع بالكامل' };
+const PREG = { pregnant:'حامل', not_pregnant:'لا يوجد حمل', unknown:'لم يتحدد حتى الآن' };
+const DAYS = ['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+const TABS = { today:['📋','اليوم','#8e6bb0'], book:['➕','حجز جديد','#2e9e6b'], patients:['👩','المريضات','#2b6cb0'], schedule:['📅','المواعيد','#c98a12'], accounts:['💰','الحسابات','#c2397a'] };
+const money = (n) => Number(n || 0).toLocaleString('en-US') + ' ج';
+const todayStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+const fmtDate = (d) => { if (!d) return ''; const [y,m,dd] = String(d).split('-'); return dd + '/' + m + '/' + y; };
+const fmtTime = (t) => t ? new Date(t).toLocaleString('ar-EG', { timeZone: 'Africa/Cairo', dateStyle: 'short', timeStyle: 'short' }) : '';
+const dayName = (d) => DAYS[new Date(d + 'T12:00:00Z').getUTCDay()];
+const addDays = (s, n) => { const d = new Date(s + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+function waLink(phone, text) {
+  let d = String(phone || '').replace(/\D/g, '');
+  if (d.startsWith('00')) d = d.slice(2); else if (d.startsWith('0')) d = '20' + d.slice(1);
+  return 'https://wa.me/' + d + '?text=' + encodeURIComponent(text);
+}
+let toastTimer;
+function toast(msg, bad) { const t = $('toast'); t.textContent = msg; t.className = 'toast' + (bad ? ' bad' : ''); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add('hidden'), 4500); }
+const errMsg = (e) => (e && e.message) ? e.message : 'حدث خطأ غير متوقع';
+async function rpc(name, args) { const { data, error } = await sb.rpc(name, args || {}); if (error) throw error; return data; }
+async function q(promise) { const { data, error } = await promise; if (error) throw error; return data; }
+const head = (tab, extra) => { const [i, l, c] = TABS[tab]; return `<div class="pagehead" style="--c:${c}"><span>${i}</span> ${l}${extra ? `<small>${extra}</small>` : ''}</div>`; };
+
+const state = { user: null, profile: null, tab: 'today', date: todayStr(), visits: [], acc: {}, sum: {}, qs: {}, doctor: null,
+  modalVisit: null, picked: null, found: [], sec: 'remaining', filter: 'all',
+  acct: { mode: 'month', anchor: todayStr(), from: todayStr(), to: todayStr() }, report: null };
+const isAdmin = () => state.profile && state.profile.role === 'admin';
+
+// ---------- الدخول ----------
+function loginError(m) { const e = $('loginError'); e.textContent = m; e.classList.toggle('hidden', !m); }
+async function enter(session) {
+  const { data: p } = await sb.from('profiles').select('full_name, role, active').eq('id', session.user.id).single();
+  if (!p || !p.active) { await sb.auth.signOut(); showScreen('login'); loginError('هذا الحساب غير مفعّل. تواصل مع المدير'); return; }
+  state.user = session.user; state.profile = p;
+  $('uname').textContent = p.full_name || session.user.email;
+  $('urole').textContent = p.role === 'admin' ? 'مدير' : 'موظف استقبال';
+  showScreen('app'); go('today'); startLive();
+}
+$('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault(); loginError(''); $('loginBtn').disabled = true; $('loginBtn').textContent = 'جارٍ الدخول...';
+  const { data, error } = await sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('password').value });
+  $('loginBtn').disabled = false; $('loginBtn').textContent = 'دخول';
+  if (error || !data.session) { loginError('البريد الإلكتروني أو كلمة المرور غير صحيحة'); return; }
+  $('password').value = ''; enter(data.session);
+});
+$('logout').addEventListener('click', async () => { stopLive(); await sb.auth.signOut(); showScreen('login'); });
+
+// ---------- التنقل ----------
+function renderNav() {
+  const keys = ['today', 'book', 'patients'].concat(isAdmin() ? ['schedule', 'accounts'] : []);
+  $('nav').innerHTML = keys.map(k => `<button data-tab="${k}" style="--c:${TABS[k][2]}" class="${state.tab === k ? 'on' : ''}"><i>${TABS[k][0]}</i>${TABS[k][1]}</button>`).join('');
+}
+function go(tab) {
+  if ((tab === 'schedule' || tab === 'accounts') && !isAdmin()) tab = 'today';
+  state.tab = tab; renderNav(); window.scrollTo(0, 0);
+  ({ today: renderToday, book: renderBook, patients: renderPatients, schedule: renderSchedule, accounts: renderAccounts })[tab]();
+}
+
+// ---------- التحديث المباشر ----------
+let channel, poll, refreshT;
+function softRefresh() {
+  clearTimeout(refreshT);
+  refreshT = setTimeout(() => {
+    if (state.tab === 'today' && $('modal').classList.contains('hidden')) renderToday(true);
+    if (state.modalVisit && !$('modal').classList.contains('hidden')) openPay(state.modalVisit, true);
+  }, 400);
+}
+function startLive() {
+  stopLive();
+  channel = sb.channel('live')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'visits' }, softRefresh)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, softRefresh)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'doctor_status' }, softRefresh)
+    .subscribe();
+  poll = setInterval(softRefresh, 20000);
+}
+function stopLive() { if (channel) sb.removeChannel(channel); channel = null; clearInterval(poll); }
+
+// ---------- اليوم ----------
+const isPost = (v) => v.status === 'cancelled' && !!v.postponed_to;
+const REM = ['waiting', 'arrived', 'in_progress', 'skipped'];
+function doctorPresent() { const d = state.doctor; return !!(d && d.arrived && d.status_date === todayStr()); }
+function visitCard(v) {
+  const a = state.acc[v.id] || { fee: v.fee, paid: 0, remaining: v.fee, pay_status: v.fee > 0 ? 'unpaid' : 'paid' };
+  const p = v.patients || {};
+  const isToday = state.date === todayStr();
+  const st = (to, label, cls) => `<button class="b ${cls || ''}" data-act="status" data-id="${v.id}" data-to="${to}">${label}</button>`;
+  const post = `<button class="b warn" data-act="postpone" data-id="${v.id}">تأجيل لموعد آخر</button>`;
+  let btns = '';
+  if (v.status === 'waiting')     btns += (isToday ? st('arrived', 'تسجيل الحضور', 'ok') : '') + st('skipped', 'تخطي', 'sec') + post + st('cancelled', 'إلغاء', 'danger');
+  if (v.status === 'arrived')     btns += (isToday ? st('in_progress', 'بدء الكشف', 'ok') : '') + st('skipped', 'تخطي', 'sec') + post + st('cancelled', 'إلغاء', 'danger');
+  if (v.status === 'in_progress') btns += st('finished', 'إنهاء الكشف', 'ok');
+  if (v.status === 'skipped')     btns += st('waiting', 'إعادة للانتظار', 'sec') + post + st('cancelled', 'إلغاء', 'danger');
+  if (v.status === 'cancelled' && !v.postponed_to) btns += st('waiting', 'إعادة للانتظار', 'sec');
+  btns += `<button class="b sec" data-act="pay" data-id="${v.id}">الحساب</button>`;
+  btns += `<button class="b sec" data-act="wa" data-id="${v.id}">واتساب</button>`;
+  const stChip = isPost(v) ? `<span class="chip postponed">مؤجل إلى ${fmtDate(v.postponed_to_date)}</span>` : `<span class="chip ${v.status}">${STATUS[v.status]}</span>`;
+  return `<div class="card visit"><div class="qn">${v.queue_no}</div><div class="vbody">
+    <div class="vname" data-act="profile" data-pid="${v.patient_id}" style="cursor:pointer">${esc(p.full_name)}</div>
+    <div class="muted">${TYPE[v.visit_type]} · حجز ${v.booking_no} · ${esc(p.phone)}</div>
+    <div style="margin:4px 0">${stChip} <span class="chip ${a.pay_status}">${PAYS[a.pay_status]}</span> <span class="chip preg">🤰 ${PREG[v.pregnancy_status] || ''}</span></div>
+    ${v.postponed_from_date ? `<div class="muted">↪ مؤجل من ${fmtDate(v.postponed_from_date)}</div>` : ''}
+    ${isPost(v) ? '' : `<div class="money">القيمة ${money(a.fee)} · المدفوع ${money(a.paid)} · المتبقي ${money(a.remaining)}</div>`}
+    ${v.admin_notes ? `<div class="muted">📝 ${esc(v.admin_notes)}</div>` : ''}
+    <div class="row">${btns}</div></div></div>`;
+}
+async function renderToday(silent) {
+  const main = $('main');
+  if (!silent) main.innerHTML = head('today') + '<p class="muted">جارٍ التحميل...</p>';
+  try {
+    const d = state.date;
+    const [vis, sum, qs, doc] = await Promise.all([
+      q(sb.from('visits').select('*, patients(full_name, phone, patient_no)').eq('visit_date', d).order('queue_no')),
+      rpc('day_summary', { p_date: d }), rpc('queue_state', { p_date: d }),
+      q(sb.from('doctor_status').select('*').eq('id', 1).single())
+    ]);
+    state.visits = vis; state.sum = sum; state.qs = qs; state.doctor = doc; state.acc = {};
+    if (vis.length) (await q(sb.from('visit_accounts').select('*').in('visit_id', vis.map(v => v.id)))).forEach(a => state.acc[a.visit_id] = a);
+    paintToday();
+  } catch (e) { if (!silent) $('main').innerHTML = head('today') + `<div class="error">${esc(errMsg(e))}</div>`; else toast(errMsg(e), true); }
+}
+function paintToday() {
+  if (state.tab !== 'today') return;
+  const d = state.date, s = state.sum, qs = state.qs, vis = state.visits;
+  const on = doctorPresent();
+  const rem = vis.filter(v => REM.includes(v.status));
+  const done = vis.filter(v => v.status === 'finished');
+  const canc = vis.filter(v => v.status === 'cancelled' && !v.postponed_to);
+  const post = vis.filter(isPost);
+  const F = { all: rem, present: rem.filter(v => v.status === 'arrived' || v.status === 'in_progress'), absent: rem.filter(v => v.status === 'waiting'),
+              skipped: rem.filter(v => v.status === 'skipped'), postponed: post };
+  const FL = { all: 'الجميع', present: 'المتواجدات الآن', absent: 'لم يتم الحضور', skipped: 'تم التخطي', postponed: 'تم التأجيل لموعد آخر' };
+  const adminBtns = isAdmin() ? `<div class="row" style="margin-bottom:12px">
+    <button class="b ok" data-act="doctor" data-ev="arrived">وصلت الدكتورة</button>
+    <button class="b sec" data-act="doctor" data-ev="reception_started">بدء الاستقبال</button>
+    <button class="b sec" data-act="doctor" data-ev="work_ended">انتهاء العمل</button>
+    <button class="b danger" data-act="doctor" data-ev="not_arrived">لم تصل</button></div>` : '';
+  const dr = state.doctor;
+  const times = dr.status_date === todayStr()
+    ? [dr.arrived_at && 'وصلت ' + fmtTime(dr.arrived_at), dr.reception_started_at && 'بدأ الاستقبال ' + fmtTime(dr.reception_started_at), dr.work_ended_at && 'انتهى العمل ' + fmtTime(dr.work_ended_at)].filter(Boolean).join(' · ') : '';
+  let list, empty;
+  if (state.sec === 'done') { list = done; empty = 'لا توجد مريضات انتهى كشفهن بعد'; }
+  else if (state.sec === 'cancelled') { list = canc; empty = 'لا توجد حجوزات ملغاة'; }
+  else { list = F[state.filter]; empty = 'لا توجد مريضات في هذه القائمة'; }
+  const segBtn = (k, label, n) => `<button data-act="sec" data-s="${k}" class="${state.sec === k ? 'on' : ''}" style="--c:${k === 'remaining' ? '#8e6bb0' : k === 'done' ? '#2e9e6b' : '#d64545'}"><b>${n}</b>${label}</button>`;
+  $('main').innerHTML = head('today', dayName(d) + ' ' + fmtDate(d)) + `
+    <div class="doc ${on ? 'on' : 'off'}"><strong>${on ? '🟢 الدكتورة وصلت العيادة' : '🔴 الدكتورة لم تصل بعد'}</strong></div>
+    ${times ? `<p class="muted" style="margin-top:-6px">${esc(times)}</p>` : ''}${adminBtns}
+    <div class="field"><label>اختيار يوم آخر</label><input type="date" id="dayPick" value="${d}"></div>
+    <div class="cur"><div><b>${qs.current ?? '-'}</b><span class="muted">الدور الحالي</span></div>
+      <div><b>${qs.next ?? '-'}</b><span class="muted">الدور التالي</span></div>
+      <div><b>${qs.waiting_count}</b><span class="muted">منتظرات</span></div></div>
+    ${d === todayStr() ? '<button class="btn" data-act="callnext" style="margin-bottom:12px">استدعاء الدور التالي</button>' : ''}
+    <div class="grid">
+      <div class="stat"><b>${s.total}</b><span>حجوزات اليوم</span></div>
+      <div class="stat"><b>${s.arrived}</b><span>حضرن</span></div>
+      <div class="stat"><b>${s.in_progress}</b><span>جاري الكشف</span></div>
+      <div class="stat"><b>${s.finished}</b><span>تم الكشف</span></div>
+      <div class="stat"><b>${s.exams}</b><span>كشوف</span></div>
+      <div class="stat"><b>${s.consults}</b><span>استشارات</span></div>
+      <div class="stat"><b>${money(s.collected)}</b><span>المحصّل اليوم</span></div>
+      <div class="stat"><b>${money(s.outstanding)}</b><span>المتبقي</span></div>
+      <div class="stat"><b>${s.patients_total}</b><span>إجمالي المريضات</span></div></div>
+    <div class="seg">${segBtn('remaining', 'الأدوار المتبقية', rem.length)}${segBtn('done', 'تم الكشف', done.length)}${segBtn('cancelled', 'تم الإلغاء', canc.length)}</div>
+    ${state.sec === 'remaining' ? `<div class="chips">${Object.keys(FL).map(k => `<button data-act="flt" data-f="${k}" class="${state.filter === k ? 'on' : ''}">${FL[k]} (${F[k].length})</button>`).join('')}</div>` : ''}
+    ${list.length ? list.map(visitCard).join('') : `<div class="card muted">${empty}</div>`}`;
+}
+
+// ---------- الحجز ----------
+function renderBook() {
+  const p = state.picked;
+  $('main').innerHTML = head('book', 'الحجز عن طريق الاستقبال فقط') + `<div class="card">
+    <h3>١) البحث عن مريضة قديمة (اختياري)</h3>
+    <div class="row" style="flex-wrap:nowrap"><input id="bq" placeholder="الاسم أو الهاتف أو الرقم التعريفي"><button class="b" data-act="bsearch" style="min-width:80px">بحث</button></div>
+    <div id="bres"></div></div>
+    <div class="card"><form data-form="book"><h3>٢) بيانات الحجز</h3>
+    ${p ? `<div class="card" style="background:#faf3fc"><b>مريضة مسجلة:</b> ${esc(p.full_name)} (رقم ${p.patient_no})<br><span class="muted">${esc(p.phone)}</span> <button type="button" class="b sec" data-act="unpick">إلغاء الاختيار</button></div>`
+      : `<div class="field"><label>اسم المريضة بالكامل</label><input id="bn" required></div>
+         <div class="field"><label>رقم الهاتف</label><input id="bp" class="ltr" inputmode="tel" required></div>`}
+    <div class="field"><label>حالة الحمل</label><select id="bpreg"><option value="unknown">لم يتحدد حتى الآن</option><option value="pregnant">حامل</option><option value="not_pregnant">لا يوجد حمل</option></select></div>
+    <div class="field"><label>تاريخ الحجز</label><input type="date" id="bd" value="${todayStr()}" min="${todayStr()}" required></div>
+    <div class="field"><label>نوع الزيارة</label><select id="bt"><option value="exam">كشف</option><option value="consult">استشارة</option></select></div>
+    <div class="field"><label>قيمة الكشف / الاستشارة (جنيه)</label><input id="bf" type="number" min="0" step="1" value="0" inputmode="numeric"></div>
+    <div class="field"><label>ملاحظات إدارية (اختياري)</label><textarea id="bnotes" rows="2"></textarea></div>
+    <button class="btn" id="bsubmit" style="background:#2e9e6b">تسجيل الحجز</button></form></div>`;
+}
+
+// ---------- المريضات ----------
+function renderPatients() {
+  $('main').innerHTML = head('patients') + `<div class="card">
+    <div class="row" style="flex-wrap:nowrap"><input id="pq" placeholder="الاسم أو الهاتف أو الرقم التعريفي"><button class="b" data-act="psearch" style="min-width:80px">بحث</button></div>
+    <div id="pres" class="muted" style="margin-top:10px">اكتبي حرفين على الأقل ثم اضغطي بحث</div></div>`;
+}
+function patientRows(list, act) {
+  return list.length ? list.map(p => `<div class="pick"><div><b>${esc(p.full_name)}</b><br><span class="muted">رقم ${p.patient_no} · ${esc(p.phone)}</span></div>
+    <button class="b" data-act="${act}" data-pid="${p.id}">${act === 'pickpat' ? 'اختيار' : 'فتح الملف'}</button></div>`).join('') : '<p class="muted">لا توجد نتائج</p>';
+}
+function visitStatusLabel(v) { return (v.status === 'cancelled' && (v.postponed_to || v.postponed)) ? 'مؤجل' : STATUS[v.status]; }
+async function openProfile(pid) {
+  try {
+    const [p, vis] = await Promise.all([
+      q(sb.from('patients').select('*').eq('id', pid).single()),
+      q(sb.from('visits').select('*').eq('patient_id', pid).order('visit_date', { ascending: false }).order('queue_no', { ascending: false }))]);
+    const acc = {};
+    if (vis.length) (await q(sb.from('visit_accounts').select('*').in('visit_id', vis.map(v => v.id)))).forEach(a => acc[a.visit_id] = a);
+    const first = vis.length ? vis[vis.length - 1].visit_date : null;
+    sheet(`<h2>${esc(p.full_name)}</h2>
+      <p class="muted">الرقم التعريفي ${p.patient_no} · أول زيارة ${first ? fmtDate(first) : '-'} · عدد الزيارات ${vis.length} · آخر زيارة ${vis.length ? fmtDate(vis[0].visit_date) : '-'}${vis.length ? ' · الحمل: ' + PREG[vis[0].pregnancy_status] : ''}</p>
+      <form data-form="editpat" data-pid="${p.id}">
+        <div class="field"><label>الاسم</label><input id="en" value="${esc(p.full_name)}" required></div>
+        <div class="field"><label>الهاتف</label><input id="ep" class="ltr" value="${esc(p.phone)}" required></div>
+        <div class="field"><label>ملاحظات إدارية</label><textarea id="eno" rows="2">${esc(p.admin_notes || '')}</textarea></div>
+        <button class="btn sec">حفظ التعديلات</button></form>
+      <h3 style="margin-top:14px">سجل الزيارات</h3>
+      ${vis.length ? `<div class="tbl"><table><tr><th>التاريخ</th><th>النوع</th><th>الدور</th><th>المتبقي</th><th>الحالة</th></tr>${vis.map(v => { const a = acc[v.id] || {}; return `<tr data-act="pay" data-id="${v.id}" style="cursor:pointer"><td>${fmtDate(v.visit_date)}</td><td>${TYPE[v.visit_type]}</td><td>${v.queue_no}</td><td>${money(a.remaining)}</td><td><span class="chip ${v.postponed_to ? 'postponed' : v.status}">${visitStatusLabel(v)}</span></td></tr>`; }).join('')}</table></div><p class="muted">اضغطي على أي زيارة لعرض الحساب والدفعات</p>` : '<p class="muted">لا توجد زيارات</p>'}
+      <button class="btn sec" data-act="close" style="margin-top:10px">إغلاق</button>`);
+  } catch (e) { toast(errMsg(e), true); }
+}
+
+// ---------- الحساب والمدفوعات ----------
+async function openPay(id, silent) {
+  try {
+    state.modalVisit = id;
+    const [v, a, pays] = await Promise.all([
+      q(sb.from('visits').select('*, patients(full_name)').eq('id', id).single()),
+      q(sb.from('visit_accounts').select('*').eq('visit_id', id).single()),
+      q(sb.from('payments').select('*').eq('visit_id', id).order('paid_at'))]);
+    const scrollTop = $('sheet').scrollTop;
+    const locked = v.status === 'cancelled';
+    sheet(`<h2>${esc(v.patients.full_name)}</h2>
+      <p class="muted">${TYPE[v.visit_type]} · ${fmtDate(v.visit_date)} · دور ${v.queue_no} · حجز ${v.booking_no}${v.postponed_to ? ' · مؤجل إلى ' + fmtDate(v.postponed_to_date) : ''}</p>
+      <div class="card" style="background:#faf3fc"><span class="chip ${a.pay_status}">${PAYS[a.pay_status]}</span>
+        <p style="margin:6px 0 0">القيمة: <b>${money(a.fee)}</b><br>المدفوع: <b>${money(a.paid)}</b><br>المتبقي: <b>${money(a.remaining)}</b></p></div>
+      ${locked ? '' : `<form data-form="fee" data-id="${id}" class="row" style="flex-wrap:nowrap;margin-bottom:12px">
+        <input id="feev" type="number" min="0" step="1" value="${a.fee}" inputmode="numeric"><button class="b sec" style="min-width:110px">تعديل القيمة</button></form>`}
+      ${Number(a.remaining) > 0 && !locked ? `<form data-form="pay" data-id="${id}"><h3>تسجيل دفعة</h3>
+        <div class="field"><label>المبلغ</label><input id="pamt" type="number" min="1" step="1" max="${a.remaining}" value="${a.remaining}" inputmode="numeric" required></div>
+        <div class="field"><label>طريقة الدفع</label><select id="pmeth"><option value="cash">كاش</option><option value="visa">فيزا</option><option value="instapay">إنستا باي</option></select></div>
+        <button class="btn">تسجيل الدفعة</button></form>` : ''}
+      <h3 style="margin-top:14px">سجل المدفوعات</h3>
+      ${pays.length ? `<div class="tbl"><table>${pays.map(p => `<tr style="${p.voided_at ? 'opacity:.5;text-decoration:line-through' : ''}"><td>${money(p.amount)}</td><td>${PAYM[p.method]}</td><td>${fmtTime(p.paid_at)}</td><td>${isAdmin() && !p.voided_at && !locked ? `<button class="b danger" data-act="void" data-pid="${p.id}">إلغاء</button>` : (p.voided_at ? esc(p.void_reason || 'ملغاة') : esc(p.note || ''))}</td></tr>`).join('')}</table></div>` : '<p class="muted">لا توجد دفعات</p>'}
+      <button class="btn sec" data-act="close" style="margin-top:10px">إغلاق</button>`);
+    if (silent) $('sheet').scrollTop = scrollTop;
+  } catch (e) { toast(errMsg(e), true); }
+}
+
+// ---------- التأجيل ----------
+function openPostpone(id) {
+  const v = state.visits.find(x => x.id === id); if (!v) return;
+  const tm = addDays(todayStr(), 1);
+  sheet(`<h2>تأجيل ${esc(v.patients.full_name)}</h2>
+    <p class="muted">يُنقل الحجز لليوم الجديد برقم دور ورقم حجز جديدين. والدفعات المسجلة تنتقل معه، ويبقى الحجز القديم في السجل بحالة "مؤجل".</p>
+    <form data-form="postpone" data-id="${id}"><div class="field"><label>الموعد الجديد</label><input type="date" id="ppd" min="${todayStr()}" value="${tm}" required></div>
+    <button class="btn" style="background:#2b6cb0">تأكيد التأجيل</button></form>
+    <button class="btn sec" data-act="close" style="margin-top:8px">رجوع</button>`);
+}
+
+// ---------- المواعيد (للمدير) ----------
+async function renderSchedule() {
+  $('main').innerHTML = head('schedule') + '<p class="muted">جارٍ التحميل...</p>';
+  try {
+    const [w, ex] = await Promise.all([
+      q(sb.from('weekly_schedule').select('*').order('weekday')),
+      q(sb.from('schedule_exceptions').select('*').gte('exc_date', todayStr()).order('exc_date'))]);
+    const byDay = {}; w.forEach(r => byDay[r.weekday] = r);
+    $('main').innerHTML = head('schedule') + `<div class="card"><h3>أيام العمل الأسبوعية</h3>
+      ${[6,0,1,2,3,4,5].map(i => { const r = byDay[i]; return `<div data-row="${i}" style="border-bottom:1px solid var(--border);padding:8px 0">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:700"><input type="checkbox" class="wo" style="width:24px;min-height:24px" ${r.is_open ? 'checked' : ''}> ${DAYS[i]}</label>
+        <div class="row" style="flex-wrap:nowrap;margin-top:6px"><input type="time" class="ws" value="${(r.start_time || '').slice(0,5)}"><input type="time" class="we" value="${(r.end_time || '').slice(0,5)}">
+        <button class="b" data-act="savewk" data-wd="${i}">حفظ</button></div></div>`; }).join('')}</div>
+      <div class="card"><h3>إجازة / يوم عمل استثنائي</h3>
+      <form data-form="exc"><div class="field"><label>التاريخ</label><input type="date" id="xd" min="${todayStr()}" required></div>
+      <div class="field"><label>النوع</label><select id="xk"><option value="closed">إجازة (إلغاء يوم عمل)</option><option value="extra_open">يوم عمل استثنائي</option></select></div>
+      <div class="row" style="flex-wrap:nowrap"><div class="field" style="flex:1"><label>من</label><input type="time" id="xs" value="10:00"></div><div class="field" style="flex:1"><label>إلى</label><input type="time" id="xe" value="18:00"></div></div>
+      <div class="field"><label>ملاحظة</label><input id="xn"></div><button class="btn">إضافة</button></form>
+      <h3 style="margin-top:12px">القادمة</h3>
+      ${ex.length ? ex.map(x => `<div class="pick"><div><b>${dayName(x.exc_date)} ${fmtDate(x.exc_date)}</b><br><span class="muted">${x.kind === 'closed' ? 'إجازة' : 'يوم عمل استثنائي ' + (x.start_time || '').slice(0,5) + '–' + (x.end_time || '').slice(0,5)} ${esc(x.note || '')}</span></div>
+        <button class="b danger" data-act="delexc" data-id="${x.id}">حذف</button></div>`).join('') : '<p class="muted">لا يوجد</p>'}</div>`;
+  } catch (e) { $('main').innerHTML = head('schedule') + `<div class="error">${esc(errMsg(e))}</div>`; }
+}
+
+// ---------- الحسابات والتصدير (للمدير فقط) ----------
+function rangeFor(mode, a) {
+  if (mode === 'day') return [a, a];
+  if (mode === 'week') { const dow = new Date(a + 'T12:00:00Z').getUTCDay(); const from = addDays(a, -((dow + 1) % 7)); return [from, addDays(from, 6)]; }   // الأسبوع يبدأ السبت
+  if (mode === 'month') { const [y, m] = a.split('-'); const last = new Date(Date.UTC(+y, +m, 0)).getUTCDate(); return [`${y}-${m}-01`, `${y}-${m}-${String(last).padStart(2, '0')}`]; }
+  if (mode === 'year') { const y = a.slice(0, 4); return [`${y}-01-01`, `${y}-12-31`]; }
+  return [state.acct.from, state.acct.to];
+}
+const MODES = { day: 'يومي', week: 'أسبوعي', month: 'شهري', year: 'سنوي', custom: 'فترة مخصصة' };
+function renderAccounts() {
+  const A = state.acct;
+  $('main').innerHTML = head('accounts', 'للمدير فقط') + `<div class="card noprint">
+    <div class="chips">${Object.keys(MODES).map(k => `<button data-act="acmode" data-m="${k}" class="${A.mode === k ? 'on' : ''}">${MODES[k]}</button>`).join('')}</div>
+    ${A.mode === 'custom'
+      ? `<div class="row" style="flex-wrap:nowrap"><div class="field" style="flex:1"><label>من</label><input type="date" id="acf" value="${A.from}"></div><div class="field" style="flex:1"><label>إلى</label><input type="date" id="act" value="${A.to}"></div></div>`
+      : `<div class="field"><label>اختاري أي يوم داخل الفترة</label><input type="date" id="aca" value="${A.anchor}"></div>`}
+    <button class="btn" data-act="acload" style="background:#c2397a">عرض الحسابات</button></div>
+    <div id="acout"></div>`;
+  loadReport();
+}
+async function loadReport() {
+  const A = state.acct, out = $('acout'); if (!out) return;
+  const [from, to] = rangeFor(A.mode, A.anchor);
+  out.innerHTML = '<p class="muted">جارٍ التحميل...</p>';
+  try {
+    const r = await rpc('accounts_report', { p_from: from, p_to: to }); r.from = from; r.to = to; state.report = r;
+    const active = r.visits.filter(v => v.status !== 'cancelled');
+    const collected = r.payments.filter(p => !p.voided).reduce((s, p) => s + Number(p.amount), 0);
+    const outstanding = active.reduce((s, v) => s + Number(v.remaining), 0);
+    const byM = { cash: 0, visa: 0, instapay: 0 }; r.payments.filter(p => !p.voided).forEach(p => byM[p.method] += Number(p.amount));
+    $('acout').innerHTML = `<div class="card"><h3>من ${fmtDate(from)} إلى ${fmtDate(to)}</h3>
+      <div class="grid"><div class="stat"><b>${money(collected)}</b><span>المحصّل (دفعات الفترة)</span></div>
+        <div class="stat"><b>${money(outstanding)}</b><span>المتبقي على زيارات الفترة</span></div>
+        <div class="stat"><b>${active.length}</b><span>عدد الزيارات</span></div>
+        <div class="stat"><b>${active.filter(v => v.type === 'exam').length}</b><span>كشوف</span></div>
+        <div class="stat"><b>${active.filter(v => v.type === 'consult').length}</b><span>استشارات</span></div>
+        <div class="stat"><b>${new Set(active.map(v => v.patient_no)).size}</b><span>مريضات</span></div></div>
+      <p class="muted">كاش ${money(byM.cash)} · فيزا ${money(byM.visa)} · إنستا باي ${money(byM.instapay)}</p>
+      <div class="row noprint"><button class="b ok" data-act="xlsx">تصدير Excel</button><button class="b sec" data-act="print">طباعة / حفظ PDF</button></div></div>
+      <div class="card"><h3>الزيارات والفواتير (${r.visits.length})</h3>
+      ${r.visits.length ? `<div class="tbl"><table><tr><th>التاريخ</th><th>الاسم</th><th>النوع</th><th>القيمة</th><th>المدفوع</th><th>المتبقي</th><th>الحالة</th></tr>
+      ${r.visits.map(v => `<tr data-act="pay" data-id="${v.visit_id}" style="cursor:pointer"><td>${fmtDate(v.visit_date)}</td><td>${esc(v.name)}</td><td>${TYPE[v.type]}</td><td>${money(v.fee)}</td><td>${money(v.paid)}</td><td>${money(v.remaining)}</td><td>${visitStatusLabel(v)}</td></tr>`).join('')}</table></div>
+      <p class="muted noprint">اضغطي على أي صف لفتح فاتورة الزيارة وسجل دفعاتها</p>` : '<p class="muted">لا توجد زيارات في هذه الفترة</p>'}</div>
+      <div class="card"><h3>سجل الدفعات (${r.payments.length})</h3>
+      ${r.payments.length ? `<div class="tbl"><table><tr><th>الوقت</th><th>الاسم</th><th>المبلغ</th><th>الطريقة</th><th>ملاحظة</th></tr>
+      ${r.payments.map(p => `<tr style="${p.voided ? 'opacity:.5;text-decoration:line-through' : ''}"><td>${fmtTime(p.paid_at)}</td><td>${esc(p.name)}</td><td>${money(p.amount)}</td><td>${PAYM[p.method]}</td><td>${p.voided ? esc(p.void_reason || 'ملغاة') : ''}</td></tr>`).join('')}</table></div>` : '<p class="muted">لا توجد دفعات</p>'}</div>`;
+  } catch (e) { out.innerHTML = `<div class="error">${esc(errMsg(e))}</div>`; }
+}
+function download(name, blob) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000); }
+function exportReport() {
+  const r = state.report; if (!r) { toast('اعرضي الحسابات أولًا', true); return; }
+  const vrows = r.visits.map(v => ({ 'التاريخ': fmtDate(v.visit_date), 'رقم المريضة': v.patient_no, 'الاسم': v.name, 'الهاتف': v.phone, 'النوع': TYPE[v.type], 'رقم الحجز': v.booking_no, 'الحالة': visitStatusLabel(v), 'القيمة': Number(v.fee), 'المدفوع': Number(v.paid), 'المتبقي': Number(v.remaining), 'حالة الدفع': PAYS[v.pay_status] }));
+  const prows = r.payments.filter(p => !p.voided).map(p => ({ 'الوقت': fmtTime(p.paid_at), 'الاسم': p.name, 'رقم الحجز': p.booking_no, 'المبلغ': Number(p.amount), 'الطريقة': PAYM[p.method] }));
+  const name = `accounts_${r.from}_${r.to}`;
+  if (window.XLSX) {
+    const wb = XLSX.utils.book_new();
+    const w1 = XLSX.utils.json_to_sheet(vrows), w2 = XLSX.utils.json_to_sheet(prows);
+    w1['!views'] = [{ RTL: true }]; w2['!views'] = [{ RTL: true }];
+    XLSX.utils.book_append_sheet(wb, w1, 'الزيارات'); XLSX.utils.book_append_sheet(wb, w2, 'الدفعات');
+    XLSX.writeFile(wb, name + '.xlsx');
+  } else {   // احتياطي: ملف CSV يفتحه Excel
+    const keys = Object.keys(vrows[0] || { 'لا توجد بيانات': 1 });
+    const csv = '\ufeff' + [keys.join(',')].concat(vrows.map(o => keys.map(k => '"' + String(o[k] ?? '').replace(/"/g, '""') + '"').join(','))).join('\n');
+    download(name + '.csv', new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  }
+}
+
+// ---------- النافذة المنبثقة ----------
+function sheet(html) { $('sheet').innerHTML = html; $('modal').classList.remove('hidden'); }
+function closeModal() {
+  $('modal').classList.add('hidden'); state.modalVisit = null;
+  if (state.tab === 'today') renderToday(true); else if (state.tab === 'accounts') loadReport();
+}
+$('modal').addEventListener('click', (e) => { if (e.target === $('modal')) closeModal(); });
+
+// ---------- الأحداث ----------
+let busy = false;
+document.addEventListener('click', async (e) => {
+  const tabBtn = e.target.closest('[data-tab]'); if (tabBtn) { go(tabBtn.dataset.tab); return; }
+  const el = e.target.closest('[data-act]'); if (!el || busy) return;
+  const act = el.dataset.act, id = el.dataset.id;
+  busy = true; if (el.tagName === 'BUTTON') el.disabled = true;
+  try {
+    if (act === 'close') closeModal();
+    else if (act === 'sec') { state.sec = el.dataset.s; paintToday(); }
+    else if (act === 'flt') { state.filter = el.dataset.f; paintToday(); }
+    else if (act === 'status') {
+      const to = el.dataset.to;
+      if (to === 'cancelled' && !confirm('هل أنتِ متأكدة من إلغاء الحجز؟')) return;
+      await rpc('set_visit_status', { p_visit_id: id, p_new: to }); await renderToday(true);
+    }
+    else if (act === 'postpone') openPostpone(id);
+    else if (act === 'callnext') { await rpc('call_next', { p_date: state.date }); await renderToday(true); }
+    else if (act === 'doctor') { await rpc('set_doctor_status', { p_event: el.dataset.ev }); await renderToday(true); }
+    else if (act === 'pay') { await openPay(id); }
+    else if (act === 'profile') { await openProfile(el.dataset.pid); }
+    else if (act === 'wa') {
+      const v = state.visits.find(x => x.id === id); if (!v) return;
+      window.open(waLink(v.patients.phone, `أهلًا ${v.patients.full_name}، رقم دورك ${v.queue_no} يوم ${fmtDate(v.visit_date)}.`), '_blank', 'noopener');
+    }
+    else if (act === 'bsearch' || act === 'psearch') {
+      const box = $(act === 'bsearch' ? 'bq' : 'pq'), out = $(act === 'bsearch' ? 'bres' : 'pres');
+      out.innerHTML = '<p class="muted">جارٍ البحث...</p>';
+      const list = await rpc('search_patients', { p_q: box.value });
+      state.found = list; out.innerHTML = patientRows(list, act === 'bsearch' ? 'pickpat' : 'profile');
+    }
+    else if (act === 'pickpat') { state.picked = (state.found || []).find(p => p.id === el.dataset.pid) || null; renderBook(); }
+    else if (act === 'unpick') { state.picked = null; renderBook(); }
+    else if (act === 'void') {
+      const reason = prompt('سبب إلغاء الدفعة:'); if (!reason) return;
+      await rpc('void_payment', { p_payment_id: el.dataset.pid, p_reason: reason }); toast('تم إلغاء الدفعة'); await openPay(state.modalVisit);
+    }
+    else if (act === 'savewk') {
+      const row = document.querySelector(`[data-row="${el.dataset.wd}"]`);
+      const open = row.querySelector('.wo').checked, s = row.querySelector('.ws').value, en = row.querySelector('.we').value;
+      if (open && (!s || !en)) { toast('حددي وقت البداية والنهاية', true); return; }
+      await q(sb.from('weekly_schedule').update({ is_open: open, start_time: s || null, end_time: en || null }).eq('weekday', Number(el.dataset.wd)));
+      toast('تم الحفظ');
+    }
+    else if (act === 'delexc') { if (!confirm('حذف هذا اليوم من الجدول؟')) return; await q(sb.from('schedule_exceptions').delete().eq('id', id)); renderSchedule(); }
+    else if (act === 'acmode') { state.acct.mode = el.dataset.m; renderAccounts(); }
+    else if (act === 'acload') {
+      if (state.acct.mode === 'custom') { state.acct.from = $('acf').value; state.acct.to = $('act').value; } else if ($('aca').value) state.acct.anchor = $('aca').value;
+      await loadReport();
+    }
+    else if (act === 'xlsx') exportReport();
+    else if (act === 'print') window.print();
+  } catch (err) { toast(errMsg(err), true); }
+  finally { busy = false; if (el.isConnected && el.tagName === 'BUTTON') el.disabled = false; }
+});
+
+document.addEventListener('change', (e) => { if (e.target.id === 'dayPick' && e.target.value) { state.date = e.target.value; renderToday(); } });
+
+document.addEventListener('submit', async (e) => {
+  const f = e.target.closest('[data-form]'); if (!f) return;
+  e.preventDefault(); if (busy) return; busy = true;
+  try {
+    const kind = f.dataset.form;
+    if (kind === 'book') {
+      const p = state.picked;
+      const name = p ? p.full_name : $('bn').value;
+      const v = await rpc('create_visit', { p_patient_id: p ? p.id : null, p_full_name: p ? null : name, p_phone: p ? null : $('bp').value,
+        p_visit_date: $('bd').value, p_visit_type: $('bt').value, p_fee: Number($('bf').value || 0), p_notes: $('bnotes').value || null, p_pregnancy: $('bpreg').value });
+      state.picked = null; renderBook();          // نموذج فارغ جاهز لحجز آخر
+      toast(`✅ تم حجز ${name} — رقم الدور ${v.queue_no} (${fmtDate(v.visit_date)})`);
+    } else if (kind === 'pay') {
+      await rpc('add_payment', { p_visit_id: f.dataset.id, p_amount: Number($('pamt').value), p_method: $('pmeth').value }); toast('تم تسجيل الدفعة'); await openPay(f.dataset.id);
+    } else if (kind === 'fee') {
+      await rpc('set_visit_fee', { p_visit_id: f.dataset.id, p_fee: Number($('feev').value) }); toast('تم تعديل القيمة'); await openPay(f.dataset.id);
+    } else if (kind === 'postpone') {
+      const n = await rpc('postpone_visit', { p_visit_id: f.dataset.id, p_new_date: $('ppd').value });
+      closeModal(); toast(`تم التأجيل إلى ${fmtDate(n.visit_date)} برقم دور ${n.queue_no}`);
+    } else if (kind === 'editpat') {
+      await q(sb.from('patients').update({ full_name: $('en').value.trim(), phone: $('ep').value.trim(), admin_notes: $('eno').value || null }).eq('id', f.dataset.pid)); toast('تم الحفظ');
+    } else if (kind === 'exc') {
+      const k = $('xk').value;
+      await q(sb.from('schedule_exceptions').insert({ exc_date: $('xd').value, kind: k, start_time: k === 'extra_open' ? $('xs').value : null, end_time: k === 'extra_open' ? $('xe').value : null, note: $('xn').value || null, created_by: state.user.id }));
+      toast('تمت الإضافة'); renderSchedule();
+    }
+  } catch (err) { toast(errMsg(err), true); }
+  finally { busy = false; }
+});
+
+sb.auth.getSession().then(({ data }) => { if (data.session) enter(data.session); else showScreen('login'); });
+})();
+</script>
+</body>
+</html>
