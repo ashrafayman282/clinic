@@ -76,14 +76,27 @@ function render(d) {
     <div class="small">آخر تحديث ${now} · يتحدث تلقائيًا</div>`;
 }
 
-let timer, last = null;
+let timer = null, last = null, stopped = false;
+// كلما قرب الدور زادت سرعة التحديث (يوفّر على الخدمة المجانية)
+function nextDelay(d) {
+  if (!d) return 15000;
+  if (!d.is_today) return 300000;
+  if (d.status === 'in_progress') return 8000;
+  if (d.remaining !== null && d.remaining <= 3) return 8000;
+  if (d.remaining !== null && d.remaining <= 10) return 15000;
+  return 30000;
+}
+function schedule(sb) {
+  clearTimeout(timer); if (stopped) return;
+  timer = setTimeout(async () => { if (!document.hidden) await load(sb); schedule(sb); }, nextDelay(last));
+}
 async function load(sb) {
   try {
     const { data, error } = await sb.rpc('get_tracking', { p_token: token });
     if (error) throw error;
-    if (!data || !data.found) { clearInterval(timer); box('❓', 'الرابط غير صحيح', 'تأكدي من الرابط أو تواصلي مع العيادة.'); return; }
+    if (!data || !data.found) { stopped = true; clearTimeout(timer); box('❓', 'الرابط غير صحيح', 'تأكدي من الرابط أو تواصلي مع العيادة.'); return; }
     if (data.closed) {
-      clearInterval(timer);
+      stopped = true; clearTimeout(timer);
       if (data.postponed) box('📅', 'تم تأجيل حجزك', 'تم تأجيل حجزك إلى ' + fmtDate(data.postponed_to_date) + '. ستصلك رسالة برابط الموعد الجديد.');
       else if (data.cancelled) box('ℹ️', 'تم إلغاء هذا الحجز', 'للاستفسار تواصلي مع العيادة.');
       else box('💜', 'انتهت زيارتك', 'شكرًا لزيارتك، نتمنى لكِ دوام الصحة.');
@@ -99,9 +112,8 @@ async function load(sb) {
 if (!/^[0-9a-f]{48}$/.test(token)) { box('❓', 'الرابط غير صحيح', 'تأكدي من الرابط أو تواصلي مع العيادة.'); return; }
 if (!cfg.SUPABASE_URL || !window.supabase) { box('⚠️', 'الصفحة غير جاهزة', 'تواصلي مع العيادة.'); return; }
 const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
-load(sb);
-timer = setInterval(() => { if (!document.hidden) load(sb); }, 8000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) load(sb); });
+load(sb).then(() => schedule(sb));
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !stopped) load(sb).then(() => schedule(sb)); });
 })();
 </script>
 </body>
