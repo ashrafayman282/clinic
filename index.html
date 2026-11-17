@@ -73,6 +73,9 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--pink2)}
 .tbl{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:14px} td,th{padding:6px 5px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
 th{background:#faf3fc;color:var(--dark)}
+.visit.urgent{border:2px solid #c0392b;background:#fff5f4}
+.qn.u{background:#c0392b;color:#fff;font-size:26px}
+.chip.urg{background:#c0392b;color:#fff} .chip.late{background:#ffe08a;color:#7a5200}
 a.b{display:inline-flex;align-items:center;text-decoration:none}
 @media print{.nav,.topbar,.noprint,.modal,.toast{display:none!important} body{background:#fff} .wrap{padding:0;max-width:none} .card{box-shadow:none}}
 </style>
@@ -96,8 +99,8 @@ a.b{display:inline-flex;align-items:center;text-decoration:none}
 
 <div id="app" class="hidden">
   <header class="topbar">
-    <div><strong id="uname"></strong> <span class="badge" id="urole"></span></div>
-    <button class="b sec" id="logout">خروج</button>
+    <div><strong id="uname"></strong> <span class="badge" id="urole"></span><div class="muted" id="cname"></div></div>
+    <div class="row" style="flex-wrap:nowrap;align-items:center"><select id="cswitch" class="hidden" style="min-height:40px;width:auto;max-width:150px"></select><button class="b sec" id="logout">خروج</button></div>
   </header>
   <main class="wrap" id="main"></main>
   <nav class="nav" id="nav"></nav>
@@ -126,12 +129,12 @@ const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY,
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const TYPE = { exam: 'كشف', consult: 'استشارة' };
 const STATUS = { waiting:'منتظرة', arrived:'حضرت العيادة', in_progress:'جاري الكشف', finished:'تم الكشف', skipped:'تم تخطي الدور', cancelled:'ملغي' };
-const PAYM = { cash:'كاش', visa:'فيزا', instapay:'إنستا باي' };
+const PAYM = { cash:'كاش', ewallet:'محفظة إلكترونية', instapay:'إنستا باي', visa:'فيزا', credit:'من رصيد المريضة' };
 const PAYS = { unpaid:'لم يُدفع', partial:'مدفوع جزئيًا', paid:'مدفوع بالكامل' };
 const PREG = { pregnant:'حامل', not_pregnant:'لا يوجد حمل', unknown:'لم يتحدد حتى الآن' };
 const DAYS = ['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
-const TABS = { today:['📋','اليوم','#8e6bb0'], book:['➕','حجز جديد','#2e9e6b'], patients:['👩','المريضات','#2b6cb0'], followup:['📞','المتابعة','#0f8b8d'], admin:['⚙️','الإدارة','#4a5568'], schedule:['📅','المواعيد','#c98a12'], accounts:['💰','الحسابات','#c2397a'], staff:['👥','الموظفون','#4a5568'], audit:['🧾','سجل العمليات','#4a5568'] };
-const SUB = ['schedule', 'accounts', 'staff', 'audit'];
+const TABS = { today:['📋','اليوم','#8e6bb0'], book:['➕','حجز جديد','#2e9e6b'], patients:['👩','المريضات','#2b6cb0'], followup:['📞','المتابعة','#0f8b8d'], admin:['⚙️','الإدارة','#4a5568'], schedule:['📅','المواعيد','#c98a12'], accounts:['💰','الحسابات','#c2397a'], staff:['👥','الموظفون','#4a5568'], audit:['🧾','سجل العمليات','#4a5568'], settings:['💲','الأسعار','#4a5568'], clinics:['🏥','العيادات','#4a5568'] };
+const SUB = ['schedule', 'accounts', 'staff', 'audit', 'settings', 'clinics'];
 const money = (n) => Number(n || 0).toLocaleString('en-US') + ' ج';
 const todayStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
 const fmtDate = (d) => { if (!d) return ''; const [y,m,dd] = String(d).split('-'); return dd + '/' + m + '/' + y; };
@@ -162,7 +165,7 @@ const isAdmin = () => !!(state.profile && state.profile.role === 'admin');
 const can = (k) => isAdmin() || !!((state.profile && state.profile.permissions) || {})[k];
 const canMoney = () => can('manage_payments') || can('view_money');
 const canFollow = () => can('view_history') || can('view_money') || can('manage_queue');
-state.staff = []; state.staffMap = {};
+state.staff = []; state.staffMap = {}; state.ctx = {}; state.settings = { exam_fee: 0, consult_fee: 0, urgent_fee: 0 }; state.cand = null;
 state.fu = { kind: null, days: 30, list: [] };
 state.audit = { from: addDays(todayStr(), -7), to: todayStr(), table: '', actor: '', rows: [], before: null, more: false, ctx: { patients: {}, visits: {}, payments: {} } };
 
@@ -174,7 +177,9 @@ async function enter(session) {
   state.user = session.user; state.profile = p;
   $('uname').textContent = p.full_name || session.user.email;
   $('urole').textContent = p.role === 'admin' ? 'مدير' : 'موظف استقبال';
-  showScreen('app'); go('today'); startLive();
+  try { state.ctx = (await rpc('my_context')) || {}; } catch (e) { state.ctx = {}; }
+  try { state.settings = await q(sb.from('clinic_settings').select('exam_fee, consult_fee, urgent_fee').single()); } catch (e) {}
+  renderTopbar(); showScreen('app'); go('today'); startLive();
 }
 $('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault(); loginError(''); $('loginBtn').disabled = true; $('loginBtn').textContent = 'جارٍ الدخول...';
@@ -194,17 +199,29 @@ function navKeys() {
   if (isAdmin()) k.push('admin');
   return k;
 }
+async function renderTopbar() {
+  $('cname').textContent = state.ctx.clinic_name ? '🏥 ' + state.ctx.clinic_name : '';
+  const sw = $('cswitch');
+  if (state.ctx.is_owner) {
+    try {
+      const list = await rpc('owner_overview');
+      sw.innerHTML = list.map(c => `<option value="${c.id}" ${c.id === state.ctx.clinic_id ? 'selected' : ''}>${esc(c.name)}${c.active ? '' : ' (موقوفة)'}</option>`).join('');
+      sw.classList.remove('hidden');
+    } catch (e) {}
+  } else sw.classList.add('hidden');
+}
 function renderNav() {
   const cur = SUB.includes(state.tab) ? 'admin' : state.tab;
   $('nav').innerHTML = navKeys().map(k => `<button data-tab="${k}" style="--c:${TABS[k][2]}" class="${cur === k ? 'on' : ''}"><i>${TABS[k][0]}</i>${TABS[k][1]}</button>`).join('');
 }
 function go(tab) {
-  if (['admin', 'schedule', 'accounts', 'staff', 'audit'].includes(tab) && !isAdmin()) tab = 'today';
+  if (['admin', 'schedule', 'accounts', 'staff', 'audit', 'settings', 'clinics'].includes(tab) && !isAdmin()) tab = 'today';
+  if (tab === 'clinics' && !state.ctx.is_owner) tab = 'today';
   if (tab === 'book' && !can('book')) tab = 'today';
   if (tab === 'patients' && !(can('view_history') || can('edit_patients'))) tab = 'today';
   if (tab === 'followup' && !canFollow()) tab = 'today';
   state.tab = tab; renderNav(); window.scrollTo(0, 0);
-  ({ today: renderToday, book: renderBook, patients: renderPatients, followup: renderFollow, admin: renderAdmin, schedule: renderSchedule, accounts: renderAccounts, staff: renderStaff, audit: renderAudit })[tab]();
+  ({ today: renderToday, book: renderBook, patients: renderPatients, followup: renderFollow, admin: renderAdmin, schedule: renderSchedule, accounts: renderAccounts, staff: renderStaff, audit: renderAudit, settings: renderSettings, clinics: renderClinics })[tab]();
 }
 
 // ---------- التحديث المباشر ----------
@@ -238,7 +255,7 @@ function visitCard(v) {
   const isToday = state.date === todayStr();
   const Q = can('manage_queue'), C = can('cancel_visits');
   const st = (to, label, cls) => `<button class="b ${cls || ''}" data-act="status" data-id="${v.id}" data-to="${to}">${label}</button>`;
-  const post = can('postpone') ? `<button class="b warn" data-act="postpone" data-id="${v.id}">تأجيل لموعد آخر</button>` : '';
+  const post = can('postpone') && !v.is_urgent ? `<button class="b warn" data-act="postpone" data-id="${v.id}">تأجيل لموعد آخر</button>` : '';
   const cancel = C ? st('cancelled', 'إلغاء', 'danger') : '';
   let btns = '';
   if (v.status === 'waiting')     btns += (Q && isToday ? st('arrived', 'تسجيل الحضور', 'ok') : '') + (Q ? st('skipped', 'تخطي', 'sec') : '') + post + cancel;
@@ -250,10 +267,10 @@ function visitCard(v) {
   if (!v.link_closed_at) btns += `<button class="b sec" data-act="copylink" data-id="${v.id}">🔗 نسخ الرابط</button>`;
   btns += `<button class="b sec" data-act="wa" data-id="${v.id}">واتساب</button>`;
   const stChip = isPost(v) ? `<span class="chip postponed">مؤجل إلى ${fmtDate(v.postponed_to_date)}</span>` : `<span class="chip ${v.status}">${STATUS[v.status]}</span>`;
-  return `<div class="card visit"><div class="qn">${v.queue_no}</div><div class="vbody">
+  return `<div class="card visit ${v.is_urgent ? 'urgent' : ''}"><div class="qn ${v.is_urgent ? 'u' : ''}">${v.is_urgent ? '🚨' : v.queue_no}</div><div class="vbody">
     <div class="vname" ${can('view_history') || can('edit_patients') ? `data-act="profile" data-pid="${v.patient_id}" style="cursor:pointer"` : ''}>${esc(p.full_name)}</div>
-    <div class="muted">${TYPE[v.visit_type]} · حجز ${v.booking_no} · ${esc(p.phone)}</div>
-    <div style="margin:4px 0">${stChip} ${showMoney ? `<span class="chip ${a.pay_status}">${PAYS[a.pay_status]}</span>` : ''} <span class="chip preg">🤰 ${PREG[v.pregnancy_status] || ''}</span></div>
+    <div class="muted">${TYPE[v.visit_type]} · حجز ${v.booking_no} · ${esc(p.phone)} · ${v.booking_source === 'phone' ? '📞 هاتفي' : '🏥 بالمركز'}</div>
+    <div style="margin:4px 0">${stChip} ${v.is_urgent ? '<span class="chip urg">🚨 كشف مستعجل</span> ' : ''}${v.late ? '<span class="chip late">⏰ متأخر</span> ' : ''}${showMoney ? `<span class="chip ${a.pay_status}">${PAYS[a.pay_status]}</span>` : ''} <span class="chip preg">🤰 ${PREG[v.pregnancy_status] || ''}</span></div>
     ${v.postponed_from_date ? `<div class="muted">↪ مؤجل من ${fmtDate(v.postponed_from_date)}</div>` : ''}
     ${isPost(v) || !showMoney ? '' : `<div class="money">القيمة ${money(a.fee)} · المدفوع ${money(a.paid)} · المتبقي ${money(a.remaining)}</div>`}
     ${v.admin_notes ? `<div class="muted">📝 ${esc(v.admin_notes)}</div>` : ''}
@@ -265,7 +282,7 @@ async function renderToday(silent) {
   try {
     const d = state.date;
     const [vis, sum, qs, doc] = await Promise.all([
-      q(sb.from('visits').select('*, patients(full_name, phone, patient_no)').eq('visit_date', d).order('queue_no')),
+      q(sb.from('visits').select('*, patients(full_name, phone, patient_no)').eq('visit_date', d).order('sort_key')),
       rpc('day_summary', { p_date: d }), rpc('queue_state', { p_date: d }),
       q(sb.from('doctor_status').select('*').eq('id', 1).single())
     ]);
@@ -302,8 +319,8 @@ function paintToday() {
     <div class="doc ${on ? 'on' : 'off'}"><strong>${on ? '🟢 الدكتورة وصلت العيادة' : '🔴 الدكتورة لم تصل بعد'}</strong></div>
     ${times ? `<p class="muted" style="margin-top:-6px">${esc(times)}</p>` : ''}${adminBtns}
     <div class="field"><label>اختيار يوم آخر</label><input type="date" id="dayPick" value="${d}"></div>
-    <div class="cur"><div><b>${qs.current ?? '-'}</b><span class="muted">الدور الحالي</span></div>
-      <div><b>${qs.next ?? '-'}</b><span class="muted">الدور التالي</span></div>
+    <div class="cur"><div><b>${qs.current_urgent ? '🚨' : (qs.current ?? '-')}</b><span class="muted">الدور الحالي</span></div>
+      <div><b>${qs.next_urgent ? '🚨' : (qs.next ?? '-')}</b><span class="muted">الدور التالي</span></div>
       <div><b>${qs.waiting_count}</b><span class="muted">منتظرات</span></div></div>
     ${d === todayStr() && can('manage_queue') ? '<button class="btn" data-act="callnext" style="margin-bottom:12px">استدعاء الدور التالي</button>' : ''}
     <div class="grid">
@@ -316,28 +333,44 @@ function paintToday() {
       ${can('view_money') ? `<div class="stat"><b>${money(s.collected)}</b><span>المحصّل اليوم</span></div>
       <div class="stat"><b>${money(s.outstanding)}</b><span>المتبقي</span></div>` : ''}
       <div class="stat"><b>${s.patients_total}</b><span>إجمالي المريضات</span></div></div>
+    ${can('view_money') && s.by_method ? `<p class="muted" style="margin-top:-4px">كاش ${money(s.by_method.cash)} · محفظة ${money(s.by_method.ewallet)} · إنستا باي ${money(s.by_method.instapay)}${s.by_method.visa ? ' · فيزا ' + money(s.by_method.visa) : ''}</p>` : ''}
     <div class="seg">${segBtn('remaining', 'الأدوار المتبقية', rem.length)}${segBtn('done', 'تم الكشف', done.length)}${segBtn('cancelled', 'تم الإلغاء', canc.length)}</div>
     ${state.sec === 'remaining' ? `<div class="chips">${Object.keys(FL).map(k => `<button data-act="flt" data-f="${k}" class="${state.filter === k ? 'on' : ''}">${FL[k]} (${F[k].length})</button>`).join('')}</div>` : ''}
     ${list.length ? list.map(visitCard).join('') : `<div class="card muted">${empty}</div>`}`;
 }
 
 // ---------- الحجز ----------
+const feeFor = (type, urgent) => { const st = state.settings || {}; return Number(urgent ? st.urgent_fee : type === 'exam' ? st.exam_fee : st.consult_fee) || 0; };
+function updateFee() {
+  const el = $('bfee'); if (!el) return;
+  const urgent = !!($('burg') && $('burg').checked);
+  if ($('bd')) { if (urgent) $('bd').value = todayStr(); $('bd').disabled = urgent; }
+  const f = feeFor($('bt').value, urgent);
+  el.textContent = money(f) + (urgent ? ' (سعر المستعجل)' : '');
+  if ($('bfo')) $('bfo').placeholder = String(f);
+}
 function renderBook() {
-  const p = state.picked;
+  const p = state.picked, preg = p ? (p.pregnancy_status || 'unknown') : 'unknown';
   $('main').innerHTML = head('book', 'الحجز عن طريق الاستقبال فقط') + `<div class="card">
-    <h3>١) البحث عن مريضة قديمة (اختياري)</h3>
-    <div class="row" style="flex-wrap:nowrap"><input id="bq" placeholder="الاسم أو الهاتف أو الرقم التعريفي"><button class="b" data-act="bsearch" style="min-width:80px">بحث</button></div>
+    <h3>١) ابحثي عن مريضة قديمة (اختياري)</h3>
+    <input id="bq" placeholder="اكتبي الاسم أو الهاتف أو الرقم التعريفي" autocomplete="off">
     <div id="bres"></div></div>
     <div class="card"><form data-form="book"><h3>٢) بيانات الحجز</h3>
     ${p ? `<div class="card" style="background:#faf3fc"><b>مريضة مسجلة:</b> ${esc(p.full_name)} (رقم ${p.patient_no})<br><span class="muted">${esc(p.phone)}</span> <button type="button" class="b sec" data-act="unpick">إلغاء الاختيار</button></div>`
       : `<div class="field"><label>اسم المريضة بالكامل</label><input id="bn" required></div>
-         <div class="field"><label>رقم الهاتف</label><input id="bp" class="ltr" inputmode="tel" required></div>`}
-    <div class="field"><label>حالة الحمل</label><select id="bpreg"><option value="unknown">لم يتحدد حتى الآن</option><option value="pregnant">حامل</option><option value="not_pregnant">لا يوجد حمل</option></select></div>
+         <div class="field"><label>رقم الهاتف</label><input id="bp" class="ltr" inputmode="tel" required></div><div id="bdup"></div>
+         <div class="field"><label>رقم هاتف آخر (اختياري)</label><input id="bp2" class="ltr" inputmode="tel"></div>`}
+    <div class="field"><label>حالة الحمل</label><select id="bpreg">
+      <option value="unknown" ${preg === 'unknown' ? 'selected' : ''}>لم يتحدد حتى الآن</option><option value="pregnant" ${preg === 'pregnant' ? 'selected' : ''}>حامل</option><option value="not_pregnant" ${preg === 'not_pregnant' ? 'selected' : ''}>لا يوجد حمل</option></select></div>
+    <label style="display:flex;align-items:center;gap:10px;padding:10px;border:2px solid #c0392b;border-radius:12px;margin-bottom:12px;background:#fff5f4;font-weight:700"><input type="checkbox" id="burg" style="width:26px;min-height:26px"> 🚨 كشف مستعجل <span class="muted">(بدون رقم دور، يدخل بعد مريضتين)</span></label>
     <div class="field"><label>تاريخ الحجز</label><input type="date" id="bd" value="${todayStr()}" min="${todayStr()}" required></div>
     <div class="field"><label>نوع الزيارة</label><select id="bt"><option value="exam">كشف</option><option value="consult">استشارة</option></select></div>
-    <div class="field"><label>قيمة الكشف / الاستشارة (جنيه)</label><input id="bf" type="number" min="0" step="1" value="0" inputmode="numeric"></div>
+    <div class="field"><label>تم استلام الحجز</label><select id="bsrc"><option value="in_person">من داخل المركز</option><option value="phone">اتصال هاتفي</option></select></div>
+    <div class="card" style="background:#faf3fc;margin-bottom:12px">القيمة: <b id="bfee" style="font-size:20px;color:var(--dark)"></b>
+      ${can('edit_fee') ? `<div class="field" style="margin:8px 0 0"><label>سعر مختلف (اختياري)</label><input id="bfo" type="number" min="0" step="1" inputmode="numeric"></div>` : ''}</div>
     <div class="field"><label>ملاحظات إدارية (اختياري)</label><textarea id="bnotes" rows="2"></textarea></div>
     <button class="btn" id="bsubmit" style="background:#2e9e6b">تسجيل الحجز</button></form></div>`;
+  updateFee();
 }
 
 // ---------- المريضات ----------
@@ -353,24 +386,43 @@ function patientRows(list, act) {
 function visitStatusLabel(v) { return (v.status === 'cancelled' && (v.postponed_to || v.postponed)) ? 'مؤجل' : STATUS[v.status]; }
 async function openProfile(pid) {
   try {
+    const showHist = can('view_history'), canEdit = can('edit_patients');
     const [p, vis] = await Promise.all([
       q(sb.from('patients').select('*').eq('id', pid).single()),
-      can('view_history') ? q(sb.from('visits').select('*').eq('patient_id', pid).order('visit_date', { ascending: false }).order('queue_no', { ascending: false })) : Promise.resolve([])]);
+      showHist ? q(sb.from('visits').select('*').eq('patient_id', pid).order('visit_date', { ascending: false }).order('sort_key', { ascending: false })) : Promise.resolve([])]);
+    state.profilePatient = p;
     const acc = {};
-    if (vis.length) (await q(sb.from('visit_accounts').select('*').in('visit_id', vis.map(v => v.id)))).forEach(a => acc[a.visit_id] = a);
-    const showHist = can('view_history');
+    if (vis.length && canMoney()) (await q(sb.from('visit_accounts').select('*').in('visit_id', vis.map(v => v.id)))).forEach(a => acc[a.visit_id] = a);
+    let bal = null; if (canMoney()) { try { bal = Number(await rpc('credit_balance', { p_patient_id: pid })); } catch (e) {} }
     const first = vis.length ? vis[vis.length - 1].visit_date : null;
+    const pen = (f) => canEdit ? `<button type="button" class="b sec" data-act="unlock" data-f="${f}" style="min-width:52px">✏️</button>` : '';
+    const lockField = (id, label, val, attrs) => `<div class="field"><label>${label}</label><div class="row" style="flex-wrap:nowrap"><input id="${id}" value="${esc(val)}" disabled ${attrs || ''}>${pen(id)}</div></div>`;
+    const preg = p.pregnancy_status || 'unknown';
     sheet(`<h2>${esc(p.full_name)}</h2>
-      <p class="muted">الرقم التعريفي ${p.patient_no} · أول زيارة ${first ? fmtDate(first) : '-'} · عدد الزيارات ${vis.length} · آخر زيارة ${vis.length ? fmtDate(vis[0].visit_date) : '-'}${vis.length ? ' · الحمل: ' + PREG[vis[0].pregnancy_status] : ''}</p>
-      ${can('edit_patients') ? `<form data-form="editpat" data-pid="${p.id}">
-        <div class="field"><label>الاسم</label><input id="en" value="${esc(p.full_name)}" required></div>
-        <div class="field"><label>الهاتف</label><input id="ep" class="ltr" value="${esc(p.phone)}" required></div>
-        <div class="field"><label>ملاحظات إدارية</label><textarea id="eno" rows="2">${esc(p.admin_notes || '')}</textarea></div>
-        <button class="btn sec">حفظ التعديلات</button></form>` : ''}
+      <p class="muted">الرقم التعريفي ${p.patient_no} · أول زيارة ${first ? fmtDate(first) : '-'} · عدد الزيارات ${vis.length} · آخر زيارة ${vis.length ? fmtDate(vis[0].visit_date) : '-'}</p>
+      <form data-form="editpat" data-pid="${p.id}">
+        ${lockField('en', 'الاسم', p.full_name)}${lockField('ep', 'الهاتف', p.phone, 'class="ltr"')}${lockField('ep2', 'هاتف آخر', p.phone2 || '', 'class="ltr" placeholder="لا يوجد"')}
+        <div class="field"><label>ملاحظات إدارية</label><div class="row" style="flex-wrap:nowrap"><textarea id="eno" rows="2" disabled>${esc(p.admin_notes || '')}</textarea>${pen('eno')}</div></div>
+        <button class="btn hidden" id="esave">💾 حفظ التعديلات</button></form>
+      <div class="field"><label>🤰 حالة الحمل (تُحفظ فور تغييرها)</label><select id="epreg" data-pid="${p.id}" ${(canEdit || can('book')) ? '' : 'disabled'}>
+        <option value="unknown" ${preg === 'unknown' ? 'selected' : ''}>لم يتحدد حتى الآن</option><option value="pregnant" ${preg === 'pregnant' ? 'selected' : ''}>حامل</option><option value="not_pregnant" ${preg === 'not_pregnant' ? 'selected' : ''}>لا يوجد حمل</option></select></div>
+      ${bal !== null ? `<div class="card" style="background:#faf3fc"><b>💳 رصيد المريضة:</b> <span style="font-size:22px;color:var(--dark)">${money(bal)}</span>
+        <div class="row" style="margin-top:8px">${can('manage_payments') ? `<button class="b" data-act="creditadd" data-pid="${p.id}">➕ إضافة رصيد</button>` : ''}${can('manage_refunds') ? `<button class="b danger" data-act="creditout" data-pid="${p.id}">↩️ سحب رصيد</button>` : ''}</div></div>` : ''}
+      ${can('book') ? `<button class="btn" data-act="pbook" style="background:#2e9e6b;margin-bottom:10px">➕ حجز زيارة جديدة لهذه المريضة</button>` : ''}
       ${showHist ? '<h3 style="margin-top:14px">سجل الزيارات</h3>' : ''}
-      ${!showHist ? '' : vis.length ? `<div class="tbl"><table><tr><th>التاريخ</th><th>النوع</th><th>الدور</th><th>المتبقي</th><th>الحالة</th></tr>${vis.map(v => { const a = acc[v.id] || {}; return `<tr data-act="pay" data-id="${v.id}" style="cursor:pointer"><td>${fmtDate(v.visit_date)}</td><td>${TYPE[v.visit_type]}</td><td>${v.queue_no}</td><td>${canMoney() ? money(a.remaining) : '-'}</td><td><span class="chip ${v.postponed_to ? 'postponed' : v.status}">${visitStatusLabel(v)}</span></td></tr>`; }).join('')}</table></div><p class="muted">اضغطي على أي زيارة لعرض الحساب والدفعات</p>` : '<p class="muted">لا توجد زيارات</p>'}
+      ${!showHist ? '' : vis.length ? `<div class="tbl"><table><tr><th>التاريخ</th><th>النوع</th><th>الدور</th><th>المتبقي</th><th>الحالة</th></tr>${vis.map(v => { const a = acc[v.id] || {}; return `<tr ${canMoney() ? `data-act="pay" data-id="${v.id}" style="cursor:pointer"` : ''}><td>${fmtDate(v.visit_date)}</td><td>${TYPE[v.visit_type]}</td><td>${v.is_urgent ? '🚨' : v.queue_no}</td><td>${canMoney() ? money(a.remaining) : '-'}</td><td><span class="chip ${v.postponed_to ? 'postponed' : v.status}">${visitStatusLabel(v)}</span></td></tr>`; }).join('')}</table></div>${canMoney() ? '<p class="muted">اضغطي على أي زيارة لعرض الحساب والدفعات</p>' : ''}` : '<p class="muted">لا توجد زيارات</p>'}
       <button class="btn sec" data-act="close" style="margin-top:10px">إغلاق</button>`);
   } catch (e) { toast(errMsg(e), true); }
+}
+function openCredit(pid, kind) {
+  const add = kind === 'add';
+  sheet(`<h2>${add ? 'إضافة رصيد للمريضة' : 'سحب رصيد'}</h2>
+    <form data-form="${add ? 'creditadd' : 'creditout'}" data-pid="${pid}">
+      <div class="field"><label>المبلغ</label><input id="cam" type="number" min="1" step="1" inputmode="numeric" required></div>
+      <div class="field"><label>${add ? 'طريقة الدفع' : 'طريقة الصرف'}</label><select id="cmeth"><option value="cash">كاش</option><option value="ewallet">محفظة إلكترونية</option><option value="instapay">إنستا باي</option></select></div>
+      <div class="field"><label>${add ? 'ملاحظة (اختياري)' : 'السبب (إلزامي)'}</label><input id="cnote" ${add ? '' : 'required'}></div>
+      <button class="btn">${add ? 'إضافة الرصيد' : 'سحب'}</button></form>
+    <button class="btn sec" data-act="close" style="margin-top:8px">إلغاء</button>`);
 }
 
 // ---------- الحساب والمدفوعات ----------
@@ -378,30 +430,62 @@ async function openPay(id, silent) {
   if (!canMoney()) { toast('ليس لديكِ صلاحية عرض الحسابات', true); return; }
   try {
     state.modalVisit = id;
-    const [v, a, pays] = await Promise.all([
+    const [v, a, pays, adjs] = await Promise.all([
       q(sb.from('visits').select('*, patients(full_name)').eq('id', id).single()),
       q(sb.from('visit_accounts').select('*').eq('visit_id', id).single()),
-      q(sb.from('payments').select('*').eq('visit_id', id).order('paid_at'))]);
-    const scrollTop = $('sheet').scrollTop;
-    const locked = v.status === 'cancelled';
+      q(sb.from('payments').select('*').eq('visit_id', id).order('paid_at')),
+      q(sb.from('visit_adjustments').select('*').eq('visit_id', id).order('created_at'))]);
+    let bal = 0; if (can('manage_payments')) { try { bal = Number(await rpc('credit_balance', { p_patient_id: v.patient_id })); } catch (e) {} }
+    const scrollTop = $('sheet').scrollTop, locked = v.status === 'cancelled';
+    const methods = '<option value="cash">كاش</option><option value="ewallet">محفظة إلكترونية</option><option value="instapay">إنستا باي</option>' + (bal > 0 ? `<option value="credit">من رصيد المريضة (${money(bal)})</option>` : '');
     sheet(`<h2>${esc(v.patients.full_name)}</h2>
-      <p class="muted">${TYPE[v.visit_type]} · ${fmtDate(v.visit_date)} · دور ${v.queue_no} · حجز ${v.booking_no}${v.postponed_to ? ' · مؤجل إلى ' + fmtDate(v.postponed_to_date) : ''}</p>
+      <p class="muted">${v.is_urgent ? '🚨 كشف مستعجل' : TYPE[v.visit_type]} · ${fmtDate(v.visit_date)} · ${v.is_urgent ? 'بدون رقم' : 'دور ' + v.queue_no} · حجز ${v.booking_no}${v.postponed_to ? ' · مؤجل إلى ' + fmtDate(v.postponed_to_date) : ''}</p>
       <div class="card" style="background:#faf3fc"><span class="chip ${a.pay_status}">${PAYS[a.pay_status]}</span>
         <p style="margin:6px 0 0">القيمة: <b>${money(a.fee)}</b><br>المدفوع: <b>${money(a.paid)}</b><br>المتبقي: <b>${money(a.remaining)}</b></p></div>
       ${locked || !can('edit_fee') ? '' : `<form data-form="fee" data-id="${id}" class="row" style="flex-wrap:nowrap;margin-bottom:12px">
-        <input id="feev" type="number" min="0" step="1" value="${a.fee}" inputmode="numeric"><button class="b sec" style="min-width:110px">تعديل القيمة</button></form>`}
+        <input id="feev" type="number" min="0" step="1" value="${v.fee}" inputmode="numeric"><button class="b sec" style="min-width:110px">تعديل القيمة</button></form>`}
       ${Number(a.remaining) > 0 && !locked && can('manage_payments') ? `<form data-form="pay" data-id="${id}"><h3>تسجيل دفعة</h3>
         <div class="field"><label>المبلغ</label><input id="pamt" type="number" min="1" step="1" max="${a.remaining}" value="${a.remaining}" inputmode="numeric" required></div>
-        <div class="field"><label>طريقة الدفع</label><select id="pmeth"><option value="cash">كاش</option><option value="visa">فيزا</option><option value="instapay">إنستا باي</option></select></div>
+        <div class="field"><label>طريقة الدفع</label><select id="pmeth">${methods}</select></div>
         <button class="btn">تسجيل الدفعة</button></form>` : ''}
+      ${!locked ? `<div class="row" style="margin:12px 0">${can('manage_payments') ? `<button class="b sec" data-act="adj" data-k="charge" data-id="${id}">➕ إضافة على الحساب</button>` : ''}${can('manage_refunds') && Number(a.paid) > 0 ? `<button class="b danger" data-act="adj" data-k="refund" data-id="${id}">↩️ إرجاع مبلغ للمريضة</button>` : ''}</div>` : ''}
       <h3 style="margin-top:14px">سجل المدفوعات</h3>
-      ${pays.length ? `<div class="tbl"><table>${pays.map(p => `<tr style="${p.voided_at ? 'opacity:.5;text-decoration:line-through' : ''}"><td>${money(p.amount)}</td><td>${PAYM[p.method]}</td><td>${fmtTime(p.paid_at)}</td><td>${isAdmin() && !p.voided_at && !locked ? `<button class="b danger" data-act="void" data-pid="${p.id}">إلغاء</button>` : (p.voided_at ? esc(p.void_reason || 'ملغاة') : esc(p.note || ''))}</td></tr>`).join('')}</table></div>` : '<p class="muted">لا توجد دفعات</p>'}
+      ${pays.length ? `<div class="tbl"><table>${pays.map(p => `<tr style="${p.voided_at ? 'opacity:.5;text-decoration:line-through' : ''}"><td>${money(p.amount)}</td><td>${PAYM[p.method] || p.method}</td><td>${fmtTime(p.paid_at)}</td><td>${isAdmin() && !p.voided_at && !locked ? `<button class="b danger" data-act="void" data-pid="${p.id}">إلغاء</button>` : (p.voided_at ? esc(p.void_reason || 'ملغاة') : esc(p.note || ''))}</td></tr>`).join('')}</table></div>` : '<p class="muted">لا توجد دفعات</p>'}
+      ${adjs.length ? `<h3 style="margin-top:14px">الإضافات والمرتجعات</h3><div class="tbl"><table>${adjs.map(x => `<tr><td>${x.kind === 'charge' ? '➕ إضافة' : '↩️ إرجاع'}</td><td>${money(x.amount)}</td><td>${x.method ? (PAYM[x.method] || '') : ''}</td><td>${esc(x.reason)}</td><td>${fmtTime(x.created_at)}</td></tr>`).join('')}</table></div>` : ''}
       <button class="btn sec" data-act="close" style="margin-top:10px">إغلاق</button>`);
     if (silent) $('sheet').scrollTop = scrollTop;
   } catch (e) { toast(errMsg(e), true); }
 }
+function openAdj(id, kind) {
+  const refund = kind === 'refund';
+  sheet(`<h2>${refund ? '↩️ إرجاع مبلغ للمريضة' : '➕ إضافة مبلغ على الحساب'}</h2>
+    <p class="muted">${refund ? 'يُخصم من المدفوع. إن لزم تخفيض قيمة الكشف عدّليها بعد ذلك.' : 'يُضاف إلى قيمة الحساب ويصبح متبقيًا على المريضة حتى تدفعه.'}</p>
+    <form data-form="adj" data-id="${id}" data-kind="${kind}">
+      <div class="field"><label>المبلغ</label><input id="aam" type="number" min="1" step="1" inputmode="numeric" required></div>
+      ${refund ? `<div class="field"><label>طريقة الإرجاع</label><select id="ameth"><option value="cash">كاش</option><option value="ewallet">محفظة إلكترونية</option><option value="instapay">إنستا باي</option><option value="credit">إلى رصيد المريضة (تستخدمه لاحقًا)</option></select></div>` : ''}
+      <div class="field"><label>السبب (إلزامي)</label><textarea id="arz" rows="2" required></textarea></div>
+      <button class="btn" style="background:${refund ? '#d64545' : '#2e9e6b'}">${refund ? 'تأكيد الإرجاع' : 'إضافة على الحساب'}</button></form>
+    <button class="btn sec" data-act="close" style="margin-top:8px">رجوع</button>`);
+}
 
 // ---------- التأجيل ----------
+async function openCall() {
+  const c = await rpc('next_candidate', { p_date: state.date });
+  state.cand = c;
+  sheet(`<h2 style="text-align:center">الدور التالي</h2>
+    <div style="text-align:center;margin:10px 0"><div class="qn ${c.is_urgent ? 'u' : ''}" style="margin:0 auto;width:110px;height:110px;font-size:52px">${c.is_urgent ? '🚨' : c.queue_no}</div>
+    <h2 style="margin:10px 0 4px">${esc(c.name)}</h2>${c.is_urgent ? '<span class="chip urg">كشف مستعجل</span> ' : ''}${c.late ? '<span class="chip late">⏰ متأخر</span>' : ''}</div>
+    <button class="btn" data-act="cand_in" style="background:#2e9e6b;min-height:60px;font-size:20px;margin-bottom:8px">✅ تم الدخول</button>
+    <button class="btn sec" data-act="cand_out" style="min-height:56px">❌ غير حاضرة</button>
+    <button class="btn sec" data-act="close" style="margin-top:8px">رجوع</button>`);
+}
+function candOut() {
+  const c = state.cand;
+  sheet(`<h2 style="text-align:center">${esc(c.name)} غير حاضرة</h2><p class="muted" style="text-align:center">اختاري ما يحدث لها:</p>
+    <button class="btn" data-act="cand_late" style="background:#c98a12;margin-bottom:8px">⏰ تأخير في الحضور<br><small>تعود آخر القائمة بشارة «متأخر»</small></button>
+    ${can('postpone') && !c.is_urgent ? '<button class="btn" data-act="cand_post" style="background:#2b6cb0;margin-bottom:8px">📅 تأجيل لموعد آخر</button>' : ''}
+    <button class="btn sec" data-act="cand_back">رجوع</button>`);
+}
 function openPostpone(id, nm) {
   const v0 = state.visits.find(x => x.id === id); const pname = nm || (v0 && v0.patients.full_name); if (!pname) return;
   const tm = addDays(todayStr(), 1);
@@ -465,7 +549,7 @@ async function loadReport() {
     const active = r.visits.filter(v => v.status !== 'cancelled');
     const collected = r.payments.filter(p => !p.voided).reduce((s, p) => s + Number(p.amount), 0);
     const outstanding = active.reduce((s, v) => s + Number(v.remaining), 0);
-    const byM = { cash: 0, visa: 0, instapay: 0 }; r.payments.filter(p => !p.voided).forEach(p => byM[p.method] += Number(p.amount));
+    const byM = { cash: 0, ewallet: 0, instapay: 0, visa: 0 }; r.payments.filter(p => !p.voided).forEach(p => { byM[p.method] = (byM[p.method] || 0) + Number(p.amount); });
     $('acout').innerHTML = `<div class="card"><h3>من ${fmtDate(from)} إلى ${fmtDate(to)}</h3>
       <div class="grid"><div class="stat"><b>${money(collected)}</b><span>المحصّل (دفعات الفترة)</span></div>
         <div class="stat"><b>${money(outstanding)}</b><span>المتبقي على زيارات الفترة</span></div>
@@ -473,7 +557,7 @@ async function loadReport() {
         <div class="stat"><b>${active.filter(v => v.type === 'exam').length}</b><span>كشوف</span></div>
         <div class="stat"><b>${active.filter(v => v.type === 'consult').length}</b><span>استشارات</span></div>
         <div class="stat"><b>${new Set(active.map(v => v.patient_no)).size}</b><span>مريضات</span></div></div>
-      <p class="muted">كاش ${money(byM.cash)} · فيزا ${money(byM.visa)} · إنستا باي ${money(byM.instapay)}</p>
+      <p class="muted">كاش ${money(byM.cash)} · محفظة ${money(byM.ewallet)} · إنستا باي ${money(byM.instapay)}${byM.visa ? ' · فيزا ' + money(byM.visa) : ''}</p>
       <div class="row noprint"><button class="b ok" data-act="xlsx">تصدير Excel</button><button class="b sec" data-act="print">طباعة / حفظ PDF</button></div></div>
       <div class="card"><h3>الزيارات والفواتير (${r.visits.length})</h3>
       ${r.visits.length ? `<div class="tbl"><table><tr><th>التاريخ</th><th>الاسم</th><th>النوع</th><th>القيمة</th><th>المدفوع</th><th>المتبقي</th><th>الحالة</th></tr>
@@ -481,14 +565,14 @@ async function loadReport() {
       <p class="muted noprint">اضغطي على أي صف لفتح فاتورة الزيارة وسجل دفعاتها</p>` : '<p class="muted">لا توجد زيارات في هذه الفترة</p>'}</div>
       <div class="card"><h3>سجل الدفعات (${r.payments.length})</h3>
       ${r.payments.length ? `<div class="tbl"><table><tr><th>الوقت</th><th>الاسم</th><th>المبلغ</th><th>الطريقة</th><th>ملاحظة</th></tr>
-      ${r.payments.map(p => `<tr style="${p.voided ? 'opacity:.5;text-decoration:line-through' : ''}"><td>${fmtTime(p.paid_at)}</td><td>${esc(p.name)}</td><td>${money(p.amount)}</td><td>${PAYM[p.method]}</td><td>${p.voided ? esc(p.void_reason || 'ملغاة') : ''}</td></tr>`).join('')}</table></div>` : '<p class="muted">لا توجد دفعات</p>'}</div>`;
+      ${r.payments.map(p => `<tr style="${p.voided ? 'opacity:.5;text-decoration:line-through' : ''}"><td>${fmtTime(p.paid_at)}</td><td>${esc(p.name)}</td><td>${money(p.amount)}</td><td>${PAYM[p.method] || ''}${p.kind && p.kind !== 'payment' ? ' · ' + ({ deposit: 'إيداع رصيد', refund: 'إرجاع', withdraw: 'سحب رصيد' }[p.kind] || '') : ''}</td><td>${(p.voided || p.kind !== 'payment') ? esc(p.void_reason || (p.voided ? 'ملغاة' : '')) : ''}</td></tr>`).join('')}</table></div>` : '<p class="muted">لا توجد دفعات</p>'}</div>`;
   } catch (e) { out.innerHTML = `<div class="error">${esc(errMsg(e))}</div>`; }
 }
 function download(name, blob) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000); }
 function exportReport() {
   const r = state.report; if (!r) { toast('اعرضي الحسابات أولًا', true); return; }
-  const vrows = r.visits.map(v => ({ 'التاريخ': fmtDate(v.visit_date), 'رقم المريضة': v.patient_no, 'الاسم': v.name, 'الهاتف': v.phone, 'النوع': TYPE[v.type], 'رقم الحجز': v.booking_no, 'الحالة': visitStatusLabel(v), 'القيمة': Number(v.fee), 'المدفوع': Number(v.paid), 'المتبقي': Number(v.remaining), 'حالة الدفع': PAYS[v.pay_status] }));
-  const prows = r.payments.filter(p => !p.voided).map(p => ({ 'الوقت': fmtTime(p.paid_at), 'الاسم': p.name, 'رقم الحجز': p.booking_no, 'المبلغ': Number(p.amount), 'الطريقة': PAYM[p.method] }));
+  const vrows = r.visits.map(v => ({ 'التاريخ': fmtDate(v.visit_date), 'رقم المريضة': v.patient_no, 'الاسم': v.name, 'الهاتف': v.phone, 'النوع': TYPE[v.type], 'رقم الحجز': v.booking_no, 'الحالة': visitStatusLabel(v), 'القيمة': Number(v.fee), 'المدفوع': Number(v.paid), 'المتبقي': Number(v.remaining), 'حالة الدفع': PAYS[v.pay_status], 'مستعجل': v.urgent ? 'نعم' : '', 'مصدر الحجز': v.source === 'phone' ? 'هاتفي' : 'بالمركز' }));
+  const prows = r.payments.filter(p => !p.voided).map(p => ({ 'الوقت': fmtTime(p.paid_at), 'الاسم': p.name, 'رقم الحجز': p.booking_no, 'المبلغ': Number(p.amount), 'الطريقة': PAYM[p.method] || '', 'النوع': ({ deposit: 'إيداع رصيد', refund: 'إرجاع', withdraw: 'سحب رصيد' }[p.kind] || 'دفعة') }));
   const name = `accounts_${r.from}_${r.to}`;
   if (window.XLSX) {
     const wb = XLSX.utils.book_new();
@@ -504,8 +588,8 @@ function exportReport() {
 }
 
 // ---------- صلاحيات الموظفين (واجهة) ----------
-const PERM_LABELS = { book: 'تسجيل الحجوزات', manage_queue: 'إدارة الأدوار (حضور / بدء / إنهاء / تخطي)', cancel_visits: 'إلغاء الحجز', postpone: 'تأجيل الحجز لموعد آخر', manage_payments: 'تسجيل الدفعات', edit_fee: 'تعديل قيمة الكشف', edit_patients: 'تعديل بيانات المريضة', view_history: 'عرض ملف المريضة وسجل زياراتها', view_money: 'عرض المبالغ والإحصائيات المالية' };
-const PERM_DEFAULT = { book: true, manage_queue: true, cancel_visits: true, postpone: true, manage_payments: true, edit_patients: true, view_history: true, view_money: true, edit_fee: false };
+const PERM_LABELS = { book: 'تسجيل الحجوزات', manage_queue: 'إدارة الأدوار (حضور / بدء / إنهاء / تخطي / تأخير)', cancel_visits: 'إلغاء الحجز', postpone: 'تأجيل الحجز لموعد آخر', manage_payments: 'تسجيل الدفعات والرصيد والإضافة على الحساب', manage_refunds: 'إرجاع الأموال وسحب الرصيد', edit_fee: 'تعديل قيمة الكشف', edit_patients: 'تعديل بيانات المريضة', view_history: 'عرض ملف المريضة وسجل زياراتها', view_money: 'عرض المبالغ والإحصائيات المالية' };
+const PERM_DEFAULT = { book: true, manage_queue: true, cancel_visits: true, postpone: true, manage_payments: true, manage_refunds: false, edit_patients: true, view_history: true, view_money: true, edit_fee: false };
 const permBoxes = (perms) => Object.keys(PERM_LABELS).map(k => `<label style="display:flex;align-items:center;gap:8px;padding:5px 0"><input type="checkbox" class="pm" data-k="${k}" style="width:24px;min-height:24px" ${perms[k] ? 'checked' : ''}> ${PERM_LABELS[k]}</label>`).join('');
 const readPerms = (root) => { const o = {}; root.querySelectorAll('.pm').forEach(c => { o[c.dataset.k] = c.checked; }); return o; };
 async function callFn(body) {
@@ -526,7 +610,7 @@ async function renderAdmin() {
     bkHtml = `<div class="${old ? 'error' : 'card'}" style="margin:0">${old ? '⚠️ آخر نسخة احتياطية قديمة! راجعي سكربت Drive' : '✅ النسخ الاحتياطي يعمل'}<br><span class="muted">آخر نسخة: ${fmtTime(bk.last_backup_at)} · ${bk.patients_count} مريضة · ${bk.visits_count} زيارة · ${bk.payments_count} دفعة</span></div>`;
   }
   const item = (t) => `<button class="card" data-tab="${t}" style="width:100%;text-align:right;font:inherit;cursor:pointer;display:flex;align-items:center;gap:12px;border-right:6px solid ${TABS[t][2]}"><span style="font-size:30px">${TABS[t][0]}</span><b style="font-size:18px">${TABS[t][1]}</b></button>`;
-  $('main').innerHTML = head('admin') + `<h3>النسخ الاحتياطي (Google Drive)</h3><div style="margin-bottom:14px">${bkHtml}</div>` + SUB.map(item).join('');
+  $('main').innerHTML = head('admin') + `<h3>النسخ الاحتياطي (Google Drive)</h3><div style="margin-bottom:14px">${bkHtml}</div>` + SUB.filter(t => t !== 'clinics' || state.ctx.is_owner).map(item).join('');
 }
 
 // ---------- الموظفون ----------
@@ -564,9 +648,9 @@ function openStaffEdit(id) {
 }
 
 // ---------- سجل العمليات ----------
-const AUD_TABLES = { patients: 'المريضات', visits: 'الحجوزات', payments: 'الدفعات', profiles: 'الموظفون', weekly_schedule: 'مواعيد العمل', schedule_exceptions: 'الإجازات', doctor_status: 'حالة الدكتورة' };
-const FLD = { full_name: 'الاسم', phone: 'الهاتف', admin_notes: 'ملاحظات', status: 'الحالة', fee: 'القيمة', visit_date: 'تاريخ الزيارة', queue_no: 'رقم الدور', visit_type: 'النوع', pregnancy_status: 'الحمل', amount: 'المبلغ', method: 'طريقة الدفع', voided_at: 'إلغاء الدفعة', void_reason: 'سبب الإلغاء', role: 'الدور الوظيفي', active: 'مفعّل', arrived: 'وصول الدكتورة', is_open: 'يوم عمل', start_time: 'من', end_time: 'إلى', postponed_to_date: 'مؤجل إلى', kind: 'النوع', exc_date: 'التاريخ', note: 'ملاحظة', email: 'البريد' };
-const AUD_SKIP = new Set(['updated_at', 'arrived_at', 'started_at', 'finished_at', 'link_closed_at', 'tracking_token', 'postponed_to', 'postponed_from', 'postponed_from_date', 'status_date', 'updated_by', 'voided_by', 'phone_norm', 'created_by', 'paid_at', 'created_at', 'reception_started_at', 'work_ended_at']);
+const AUD_TABLES = { patients: 'المريضات', visits: 'الحجوزات', payments: 'الدفعات', visit_adjustments: 'الإضافات والمرتجعات', credit_ledger: 'رصيد المريضات', profiles: 'الموظفون', clinic_settings: 'الأسعار', weekly_schedule: 'مواعيد العمل', schedule_exceptions: 'الإجازات', doctor_status: 'حالة الدكتورة' };
+const FLD = { full_name: 'الاسم', phone: 'الهاتف', phone2: 'هاتف آخر', admin_notes: 'ملاحظات', status: 'الحالة', fee: 'القيمة', visit_date: 'تاريخ الزيارة', queue_no: 'رقم الدور', visit_type: 'النوع', pregnancy_status: 'الحمل', amount: 'المبلغ', method: 'طريقة الدفع', voided_at: 'إلغاء الدفعة', void_reason: 'سبب الإلغاء', role: 'الدور الوظيفي', active: 'مفعّل', arrived: 'وصول الدكتورة', is_open: 'يوم عمل', start_time: 'من', end_time: 'إلى', postponed_to_date: 'مؤجل إلى', kind: 'النوع', exc_date: 'التاريخ', note: 'ملاحظة', email: 'البريد', late: 'متأخر', is_urgent: 'مستعجل', booking_source: 'مصدر الحجز', exam_fee: 'سعر الكشف', consult_fee: 'سعر الاستشارة', urgent_fee: 'سعر المستعجل', reason: 'السبب' };
+const AUD_SKIP = new Set(['updated_at', 'arrived_at', 'started_at', 'finished_at', 'link_closed_at', 'tracking_token', 'postponed_to', 'postponed_from', 'postponed_from_date', 'status_date', 'updated_by', 'voided_by', 'phone_norm', 'created_by', 'paid_at', 'created_at', 'reception_started_at', 'work_ended_at', 'sort_key', 'clinic_id', 'current_clinic_id', 'next_patient_no', 'next_booking_no', 'is_owner']);
 function fv(k, v) {
   if (v === null || v === undefined || v === '') return '—';
   if (k === 'status') return STATUS[v] || v;
@@ -597,11 +681,14 @@ function auditTitle(r, ctx) {
   const t = r.table_name, n = r.new_data || {}, ins = r.action === 'INSERT';
   const vinfo = (id) => { const v = ctx.visits[id]; return v ? `${v.name} (دور ${v.queue_no} · ${fmtDate(v.visit_date)})` : ''; };
   if (t === 'patients') return ins ? `تسجيل مريضة جديدة: ${n.full_name}` : `تعديل بيانات مريضة: ${ctx.patients[r.record_id] || ''}`;
-  if (t === 'visits') return ins ? `حجز جديد: ${ctx.patients[n.patient_id] || ''} (دور ${n.queue_no} · ${fmtDate(n.visit_date)})` : `تعديل حجز: ${vinfo(r.record_id)}`;
+  if (t === 'visits') return ins ? `حجز جديد: ${ctx.patients[n.patient_id] || ''} (${n.is_urgent ? 'مستعجل' : 'دور ' + n.queue_no} · ${fmtDate(n.visit_date)})` : `تعديل حجز: ${vinfo(r.record_id)}`;
   if (t === 'payments') { const vid = n.visit_id || (ctx.payments[r.record_id] || {}).visit_id; return ins ? `تسجيل دفعة ${money(n.amount)} (${PAYM[n.method] || ''}) — ${vinfo(vid)}` : `تعديل دفعة — ${vinfo(vid)}`; }
   if (t === 'profiles') return ins ? 'إنشاء حساب موظف' : `تعديل حساب موظف: ${(state.staffMap[r.record_id] || {}).full_name || ''}`;
   if (t === 'weekly_schedule') return `تعديل مواعيد يوم ${DAYS[Number(r.record_id)] || ''}`;
   if (t === 'schedule_exceptions') return 'إجازة / يوم عمل استثنائي';
+  if (t === 'visit_adjustments') return ins ? `${n.kind === 'charge' ? 'إضافة على الحساب' : 'إرجاع مبلغ'} ${money(n.amount)} — ${n.reason}` : 'تعديل مالي';
+  if (t === 'credit_ledger') return `رصيد مريضة: ${({ deposit: 'إيداع', use: 'استخدام', withdraw: 'سحب', refund_in: 'إرجاع إلى الرصيد', void_return: 'إرجاع بعد إلغاء دفعة' }[n.kind] || '')} ${money(Math.abs(n.amount))}`;
+  if (t === 'clinic_settings') return 'تعديل أسعار الكشف';
   if (t === 'doctor_status') return 'تغيير حالة الدكتورة';
   return t;
 }
@@ -686,6 +773,51 @@ function fuMessage(x) {
   return `أهلًا ${x.name}، لم نتمكن من رؤيتك في موعدك يوم ${fmtDate(x.visit_date)}، هل تودين تحديد موعد جديد؟`;
 }
 
+// ---------- الأسعار (للمدير) ----------
+function renderSettings() {
+  const st = state.settings;
+  $('main').innerHTML = head('settings', state.ctx.clinic_name || '') + `<div class="card"><h3>أسعار الكشف</h3>
+    <p class="muted">تُطبَّق تلقائيًا عند الحجز، وتغييرها لا يؤثر على الحجوزات السابقة.</p>
+    <form data-form="settings">
+      <div class="field"><label>سعر الكشف (جنيه)</label><input id="sx" type="number" min="0" step="1" value="${st.exam_fee}" inputmode="numeric"></div>
+      <div class="field"><label>سعر الاستشارة (جنيه)</label><input id="sc" type="number" min="0" step="1" value="${st.consult_fee}" inputmode="numeric"></div>
+      <div class="field"><label>سعر الكشف المستعجل (جنيه)</label><input id="su" type="number" min="0" step="1" value="${st.urgent_fee}" inputmode="numeric"></div>
+      <button class="btn" style="background:#4a5568">حفظ الأسعار</button></form></div>`;
+}
+
+// ---------- العيادات (لصاحب النظام فقط) ----------
+async function renderClinics() {
+  $('main').innerHTML = head('clinics', 'لصاحب النظام فقط') + '<p class="muted">جارٍ التحميل...</p>';
+  try {
+    const list = await rpc('owner_overview'); state.clinicList = list;
+    $('main').innerHTML = head('clinics', 'لصاحب النظام فقط') + `<button class="btn" data-act="clinicadd" style="margin-bottom:12px;background:#4a5568">➕ إضافة عيادة جديدة</button>` +
+      list.map(c => `<div class="card"><div><b style="font-size:18px">${esc(c.name)}</b> ${c.active ? '' : '<span class="chip cancelled">موقوفة</span>'} ${c.id === state.ctx.clinic_id ? '<span class="badge">الحالية</span>' : ''}<br><span class="muted">${esc(c.doctor_name || '')}</span></div>
+        <div class="grid" style="margin:8px 0"><div class="stat"><b>${c.today_total}</b><span>حجوزات اليوم</span></div><div class="stat"><b>${c.today_finished}</b><span>انتهى الكشف</span></div><div class="stat"><b>${money(c.today_collected)}</b><span>المحصّل اليوم</span></div><div class="stat"><b>${c.patients}</b><span>مريضة</span></div><div class="stat"><b>${c.staff}</b><span>موظف</span></div><div class="stat"><b>${c.doctor_arrived ? '🟢' : '🔴'}</b><span>الدكتورة</span></div></div>
+        <div class="row"><button class="b" data-act="clinicenter" data-id="${c.id}">دخول العيادة</button><button class="b sec" data-act="clinicedit" data-id="${c.id}">تعديل</button></div></div>`).join('');
+  } catch (e) { $('main').innerHTML = head('clinics') + `<div class="error">${esc(errMsg(e))}</div>`; }
+}
+function openClinicAdd() {
+  sheet(`<h2>إضافة عيادة جديدة</h2><p class="muted">عيادة منفصلة تمامًا: بياناتها وموظفوها وأرقامها لا علاقة لها بأي عيادة أخرى.</p>
+    <form data-form="clinicnew">
+      <div class="field"><label>اسم العيادة</label><input id="kn" required></div>
+      <div class="field"><label>اسم الدكتورة (اختياري)</label><input id="kd"></div>
+      <h3>حساب مدير العيادة</h3>
+      <div class="field"><label>اسم المدير</label><input id="ka" required></div>
+      <div class="field"><label>البريد الإلكتروني</label><input id="ke" class="ltr" type="email" required></div>
+      <div class="field"><label>كلمة المرور (8 أحرف على الأقل)</label><input id="kp" class="ltr" minlength="8" required></div>
+      <button class="btn" style="background:#4a5568">إنشاء العيادة</button></form>
+    <button class="btn sec" data-act="close" style="margin-top:8px">إلغاء</button>`);
+}
+function openClinicEdit(id) {
+  const c = (state.clinicList || []).find(x => x.id === id); if (!c) return;
+  sheet(`<h2>تعديل العيادة</h2><form data-form="clinicedit" data-id="${id}">
+    <div class="field"><label>اسم العيادة</label><input id="kn" value="${esc(c.name)}" required></div>
+    <div class="field"><label>اسم الدكتورة</label><input id="kd" value="${esc(c.doctor_name || '')}"></div>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="kact" style="width:24px;min-height:24px" ${c.active ? 'checked' : ''}> العيادة مفعّلة (إيقافها يمنع موظفيها من الدخول)</label>
+    <button class="btn" style="background:#4a5568">حفظ</button></form>
+    <button class="btn sec" data-act="close" style="margin-top:8px">إغلاق</button>`);
+}
+
 // ---------- النافذة المنبثقة ----------
 function sheet(html) { $('sheet').innerHTML = html; $('modal').classList.remove('hidden'); }
 function closeModal() {
@@ -711,7 +843,7 @@ document.addEventListener('click', async (e) => {
       await rpc('set_visit_status', { p_visit_id: id, p_new: to }); await renderToday(true);
     }
     else if (act === 'postpone') openPostpone(id);
-    else if (act === 'callnext') { await rpc('call_next', { p_date: state.date }); await renderToday(true); }
+    else if (act === 'callnext') await openCall();
     else if (act === 'doctor') { await rpc('set_doctor_status', { p_event: el.dataset.ev }); await renderToday(true); }
     else if (act === 'pay') { await openPay(id); }
     else if (act === 'profile') { await openProfile(el.dataset.pid); }
@@ -751,6 +883,19 @@ document.addEventListener('click', async (e) => {
     }
     else if (act === 'xlsx') exportReport();
     else if (act === 'print') window.print();
+    else if (act === 'unlock') { const inp = $(el.dataset.f); inp.disabled = false; inp.focus(); $('esave').classList.remove('hidden'); }
+    else if (act === 'pbook') { const x = state.profilePatient; state.picked = { id: x.id, full_name: x.full_name, phone: x.phone, patient_no: x.patient_no, pregnancy_status: x.pregnancy_status }; $('modal').classList.add('hidden'); state.modalVisit = null; go('book'); }
+    else if (act === 'creditadd') openCredit(el.dataset.pid, 'add');
+    else if (act === 'creditout') openCredit(el.dataset.pid, 'out');
+    else if (act === 'adj') openAdj(id, el.dataset.k);
+    else if (act === 'clinicenter') { await rpc('switch_clinic', { p_clinic: id }); location.reload(); }
+    else if (act === 'clinicadd') openClinicAdd();
+    else if (act === 'clinicedit') openClinicEdit(id);
+    else if (act === 'cand_in') { await rpc('start_visit', { p_visit_id: state.cand.visit_id }); closeModal(); toast('بدأ الكشف ✅'); }
+    else if (act === 'cand_out') candOut();
+    else if (act === 'cand_back') await openCall();
+    else if (act === 'cand_late') { await rpc('mark_late', { p_visit_id: state.cand.visit_id }); closeModal(); toast('تم تسجيلها متأخرة وعادت لقائمة الانتظار ⏰'); }
+    else if (act === 'cand_post') openPostpone(state.cand.visit_id, state.cand.name);
     else if (act === 'staffadd') openStaffAdd();
     else if (act === 'staffedit') openStaffEdit(id);
     else if (act === 'audload') { const A = state.audit; A.from = $('auf').value; A.to = $('aut').value; A.table = $('aus').value; A.actor = $('aua').value; await loadAudit(true); }
@@ -768,9 +913,25 @@ document.addEventListener('click', async (e) => {
   finally { busy = false; if (el.isConnected && el.tagName === 'BUTTON') el.disabled = false; }
 });
 
+let searchTimer;
+document.addEventListener('input', (e) => {
+  const id = e.target.id; if (id !== 'bq' && id !== 'bp') return;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(async () => {
+    const val = e.target.value.trim(), out = $(id === 'bq' ? 'bres' : 'bdup'); if (!out) return;
+    if ((id === 'bq' && val.length < 2) || (id === 'bp' && val.replace(/\D/g, '').length < 8)) { out.innerHTML = ''; return; }
+    try {
+      const list = await rpc('search_patients', { p_q: val }); state.found = list;
+      out.innerHTML = id === 'bq' ? patientRows(list, 'pickpat') : (list.length ? '<div class="error">⚠️ يوجد مريضة مسجلة بهذا الرقم، هل هي نفسها؟</div>' + patientRows(list, 'pickpat') : '');
+    } catch (err) {}
+  }, 350);
+});
 document.addEventListener('change', (e) => {
   if (e.target.id === 'dayPick' && e.target.value) { state.date = e.target.value; renderToday(); }
   if (e.target.id === 'fud') { state.fu.days = Number(e.target.value); loadFollow(); }
+  if (['bt', 'burg', 'bd'].includes(e.target.id)) updateFee();
+  if (e.target.id === 'cswitch') rpc('switch_clinic', { p_clinic: e.target.value }).then(() => location.reload()).catch(err => toast(errMsg(err), true));
+  if (e.target.id === 'epreg') rpc('set_pregnancy', { p_patient_id: e.target.dataset.pid, p_status: e.target.value }).then(() => toast('تم تحديث حالة الحمل ✅')).catch(err => toast(errMsg(err), true));
 });
 
 document.addEventListener('submit', async (e) => {
@@ -779,12 +940,13 @@ document.addEventListener('submit', async (e) => {
   try {
     const kind = f.dataset.form;
     if (kind === 'book') {
-      const p = state.picked;
-      const name = p ? p.full_name : $('bn').value;
-      const v = await rpc('create_visit', { p_patient_id: p ? p.id : null, p_full_name: p ? null : name, p_phone: p ? null : $('bp').value,
-        p_visit_date: $('bd').value, p_visit_type: $('bt').value, p_fee: Number($('bf').value || 0), p_notes: $('bnotes').value || null, p_pregnancy: $('bpreg').value });
+      const p = state.picked, urgent = $('burg').checked, name = p ? p.full_name : $('bn').value;
+      const ov = can('edit_fee') && $('bfo') && $('bfo').value !== '' ? Number($('bfo').value) : null;
+      const v = await rpc('create_visit', { p_patient_id: p ? p.id : null, p_full_name: p ? null : name, p_phone: p ? null : $('bp').value, p_phone2: p ? null : ($('bp2').value || null),
+        p_visit_date: urgent ? todayStr() : $('bd').value, p_visit_type: $('bt').value, p_fee: ov, p_notes: $('bnotes').value || null,
+        p_pregnancy: $('bpreg').value, p_urgent: urgent, p_source: $('bsrc').value });
       state.picked = null; renderBook();          // نموذج فارغ جاهز لحجز آخر
-      toast(`✅ تم حجز ${name} — رقم الدور ${v.queue_no} (${fmtDate(v.visit_date)})`);
+      toast(urgent ? `🚨 تم تسجيل كشف مستعجل لـ ${name}` : `✅ تم حجز ${name} — رقم الدور ${v.queue_no} (${fmtDate(v.visit_date)})`);
     } else if (kind === 'pay') {
       await rpc('add_payment', { p_visit_id: f.dataset.id, p_amount: Number($('pamt').value), p_method: $('pmeth').value }); toast('تم تسجيل الدفعة'); await openPay(f.dataset.id);
     } else if (kind === 'fee') {
@@ -793,7 +955,27 @@ document.addEventListener('submit', async (e) => {
       const n = await rpc('postpone_visit', { p_visit_id: f.dataset.id, p_new_date: $('ppd').value });
       closeModal(); toast(`تم التأجيل إلى ${fmtDate(n.visit_date)} برقم دور ${n.queue_no}`);
     } else if (kind === 'editpat') {
-      await q(sb.from('patients').update({ full_name: $('en').value.trim(), phone: $('ep').value.trim(), admin_notes: $('eno').value || null }).eq('id', f.dataset.pid)); toast('تم الحفظ');
+      if (!confirm('تأكيد حفظ التعديلات على بيانات المريضة؟')) return;
+      await q(sb.from('patients').update({ full_name: $('en').value.trim(), phone: $('ep').value.trim(), phone2: $('ep2').value.trim() || null, admin_notes: $('eno').value || null }).eq('id', f.dataset.pid)); toast('تم الحفظ ✅'); await openProfile(f.dataset.pid);
+    } else if (kind === 'adj') {
+      const refund = f.dataset.kind === 'refund';
+      await rpc('add_adjustment', { p_visit_id: f.dataset.id, p_kind: f.dataset.kind, p_amount: Number($('aam').value), p_method: refund ? $('ameth').value : null, p_reason: $('arz').value });
+      toast(refund ? 'تم تسجيل الإرجاع ✅' : 'تمت الإضافة على الحساب ✅'); await openPay(f.dataset.id);
+    } else if (kind === 'creditadd') {
+      await rpc('add_credit', { p_patient_id: f.dataset.pid, p_amount: Number($('cam').value), p_method: $('cmeth').value, p_note: $('cnote').value || null });
+      toast('تمت إضافة الرصيد ✅'); await openProfile(f.dataset.pid);
+    } else if (kind === 'creditout') {
+      await rpc('withdraw_credit', { p_patient_id: f.dataset.pid, p_amount: Number($('cam').value), p_method: $('cmeth').value, p_reason: $('cnote').value });
+      toast('تم سحب الرصيد ✅'); await openProfile(f.dataset.pid);
+    } else if (kind === 'settings') {
+      const n = { exam_fee: Number($('sx').value || 0), consult_fee: Number($('sc').value || 0), urgent_fee: Number($('su').value || 0) };
+      await q(sb.from('clinic_settings').update(n).eq('clinic_id', state.ctx.clinic_id)); state.settings = n; toast('تم حفظ الأسعار ✅');
+    } else if (kind === 'clinicnew') {
+      await callFn({ action: 'create_clinic', clinic_name: $('kn').value, doctor_name: $('kd').value, full_name: $('ka').value, email: $('ke').value, password: $('kp').value });
+      closeModal(); toast('تم إنشاء العيادة ✅'); renderTopbar(); renderClinics();
+    } else if (kind === 'clinicedit') {
+      await rpc('update_clinic', { p_id: f.dataset.id, p_name: $('kn').value, p_doctor: $('kd').value, p_active: $('kact').checked });
+      closeModal(); toast('تم الحفظ ✅'); renderTopbar(); renderClinics();
     } else if (kind === 'staffnew') {
       await callFn({ action: 'create', full_name: $('sn').value, email: $('se').value, password: $('sp').value, permissions: readPerms(f) });
       closeModal(); toast('تم إنشاء حساب الموظف ✅');

@@ -24,13 +24,14 @@ h1{margin:0;text-align:center;color:var(--dark);font-size:22px}
 .row{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)} .row:last-child{border:0}
 .row span:first-child{color:var(--muted)}
 .msg{text-align:center;font-weight:700;color:var(--dark);font-size:18px;padding:6px 0}
+.num.urg{background:#c0392b} .notice{background:#fff3d6;color:#8a5a00;border-radius:12px;padding:10px;text-align:center;font-weight:700;margin-bottom:10px}
 .small{text-align:center;color:var(--muted);font-size:13px;margin-top:10px}
 .center{text-align:center;padding:30px 10px} .center h2{color:var(--dark);margin:6px 0}
 .emoji{font-size:54px}
 </style>
 </head>
 <body>
-<div class="wrap"><h1>🌸 عيادة الدكتورة</h1><p class="sub">متابعة دورك</p><div id="out"><div class="card center"><p>جارٍ التحميل...</p></div></div></div>
+<div class="wrap"><h1 id="clinicName">🌸 عيادة الدكتورة</h1><p class="sub">متابعة دورك</p><div id="out"><div class="card center"><p>جارٍ التحميل...</p></div></div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
@@ -49,7 +50,12 @@ const cfg = window.APP_CONFIG || {};
 
 function box(emoji, title, text) { out.innerHTML = `<div class="card center"><div class="emoji">${emoji}</div><h2>${esc(title)}</h2><p>${esc(text)}</p></div>`; }
 
+function urgText(n) {
+  const t = n === 1 ? 'دخلت حالة مستعجلة' : n === 2 ? 'دخلت حالتان مستعجلتان' : 'دخلت ' + n + ' حالات مستعجلة';
+  return t + ' أثناء انتظارك، وقد يتأخر دورك قليلًا. شكرًا لتفهمك.';
+}
 function message(d) {
+  if (d.late) return 'تم تسجيل تأخرك في الحضور. من فضلك توجّهي لموظفة الاستقبال.';
   if (!d.is_today) return 'موعدك يوم ' + dayName(d.visit_date) + ' ' + fmtDate(d.visit_date) + '. يبدأ تتبع الدور في يوم الزيارة.';
   if (d.status === 'in_progress') return 'الدكتورة تكشف عليكِ الآن 💜';
   if (d.status === 'skipped') return 'تم تخطي دورك مؤقتًا، من فضلك توجّهي لموظفة الاستقبال.';
@@ -59,15 +65,17 @@ function message(d) {
 }
 
 function render(d) {
+  if (d.clinic_name) document.getElementById('clinicName').textContent = '🌸 ' + d.clinic_name;
   const now = new Date().toLocaleTimeString('ar-EG', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' });
   out.innerHTML = `
     <div class="doc ${d.doctor_arrived ? 'on' : 'off'}">${d.doctor_arrived ? '🟢 الدكتورة وصلت إلى العيادة' : '🔴 الدكتورة لم تصل بعد'}</div>
     <div class="card"><p style="margin:0 0 10px;text-align:center">أهلًا بكِ <b>${esc(d.patient_name)}</b> في عيادة الدكتورة</p>
       <div class="nums">
-        <div class="num big"><b>${d.queue_no}</b><span>رقم دورك</span></div>
-        <div class="num"><b>${d.current_queue ?? '-'}</b><span>الدور الحالي</span></div>
+        <div class="num big ${d.is_urgent ? 'urg' : ''}"><b>${d.is_urgent ? '🚨' : d.queue_no}</b><span>${d.is_urgent ? 'كشف مستعجل' : 'رقم دورك'}</span></div>
+        <div class="num"><b>${d.current_urgent ? '🚨' : (d.current_queue ?? '-')}</b><span>${d.current_urgent ? 'حالة مستعجلة الآن' : 'الدور الحالي'}</span></div>
         <div class="num"><b>${d.remaining ?? '-'}</b><span>الأدوار المتبقية أمامك</span></div>
       </div>
+      ${d.urgent_before > 0 ? `<div class="notice">🚨 ${esc(urgText(d.urgent_before))}</div>` : ''}
       <div class="msg">${esc(message(d))}</div></div>
     <div class="card">
       <div class="row"><span>تاريخ الزيارة</span><b>${esc(dayName(d.visit_date))} ${fmtDate(d.visit_date)}</b></div>
