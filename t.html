@@ -25,6 +25,12 @@ h1{margin:0;text-align:center;color:var(--dark);font-size:22px}
 .row span:first-child{color:var(--muted)}
 .msg{text-align:center;font-weight:700;color:var(--dark);font-size:18px;padding:6px 0}
 .num.urg{background:#c0392b} .notice{background:#fff3d6;color:#8a5a00;border-radius:12px;padding:10px;text-align:center;font-weight:700;margin-bottom:10px}
+.stars{display:flex;justify-content:center;gap:4px;direction:ltr;margin:6px 0 10px}
+.stars button{font-size:42px;line-height:1;background:none;border:0;color:#d5c3df;cursor:pointer;padding:0 2px}
+.stars button.on{color:#e0a800}
+#rc{width:100%;border:1.5px solid var(--border);border-radius:12px;padding:10px;font:inherit;font-size:16px;resize:vertical}
+.send{width:100%;min-height:50px;margin-top:10px;border:0;border-radius:12px;background:var(--mauve);color:#fff;font:inherit;font-weight:700;font-size:17px;cursor:pointer}
+.send:disabled{opacity:.5}
 .small{text-align:center;color:var(--muted);font-size:13px;margin-top:10px}
 .center{text-align:center;padding:30px 10px} .center h2{color:var(--dark);margin:6px 0}
 .emoji{font-size:54px}
@@ -84,6 +90,31 @@ function render(d) {
     <div class="small">آخر تحديث ${now} · يتحدث تلقائيًا</div>`;
 }
 
+function renderFinished(d) {
+  if (d.clinic_name) document.getElementById('clinicName').textContent = '🌸 ' + d.clinic_name;
+  if (!d.can_review) { box('💜', 'انتهت زيارتك', d.reviewed ? 'شكرًا لتقييمك، رأيك يهمنا 💜' : 'شكرًا لزيارتك، نتمنى لكِ دوام الصحة.'); return; }
+  out.innerHTML = `<div class="card center"><div class="emoji">💜</div><h2>انتهت زيارتك</h2><p>شكرًا لزيارتك، نتمنى لكِ دوام الصحة.</p>
+    <p style="margin:14px 0 0;font-weight:700">كيف كانت تجربتك معنا؟</p>
+    <div class="stars" id="stars">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-n="${n}" aria-label="${n} نجوم">★</button>`).join('')}</div>
+    <textarea id="rc" rows="4" maxlength="1000" placeholder="اكتبي ملاحظاتك هنا (اختياري)"></textarea>
+    <div id="rerr" class="small" style="color:var(--bad)"></div>
+    <button id="rsend" class="send" disabled>إرسال</button></div>`;
+  let rating = 0;
+  const btns = out.querySelectorAll('#stars button');
+  btns.forEach(b => b.addEventListener('click', () => {
+    rating = Number(b.dataset.n);
+    btns.forEach(x => x.classList.toggle('on', Number(x.dataset.n) <= rating));
+    document.getElementById('rsend').disabled = false;
+  }));
+  document.getElementById('rsend').addEventListener('click', async () => {
+    const btn = document.getElementById('rsend'); btn.disabled = true; btn.textContent = 'جارٍ الإرسال...';
+    const { data, error } = await sb.rpc('submit_review', { p_token: token, p_rating: rating, p_comment: document.getElementById('rc').value || null });
+    if (error || !data || (!data.ok && data.error !== 'already')) {
+      btn.disabled = false; btn.textContent = 'إرسال'; document.getElementById('rerr').textContent = 'تعذر الإرسال، حاولي مرة أخرى.'; return;
+    }
+    box('🌟', 'شكرًا لتقييمك!', 'نقدّر رأيك جدًا، ورضاكِ هو هدفنا. نتمنى لكِ دوام الصحة 💜');
+  });
+}
 let timer = null, last = null, stopped = false;
 // كلما قرب الدور زادت سرعة التحديث (يوفّر على الخدمة المجانية)
 function nextDelay(d) {
@@ -107,7 +138,7 @@ async function load(sb) {
       stopped = true; clearTimeout(timer);
       if (data.postponed) box('📅', 'تم تأجيل حجزك', 'تم تأجيل حجزك إلى ' + fmtDate(data.postponed_to_date) + '. ستصلك رسالة برابط الموعد الجديد.');
       else if (data.cancelled) box('ℹ️', 'تم إلغاء هذا الحجز', 'للاستفسار تواصلي مع العيادة.');
-      else box('💜', 'انتهت زيارتك', 'شكرًا لزيارتك، نتمنى لكِ دوام الصحة.');
+      else renderFinished(data);
       return;
     }
     last = data; render(data);
